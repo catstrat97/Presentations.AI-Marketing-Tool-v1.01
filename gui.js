@@ -723,12 +723,21 @@ document.addEventListener('DOMContentLoaded', () => {
   updateOverlays();
 
   document.getElementById('btn-export').addEventListener('click', () => {
-    const canvas = document.querySelector('#canvas-wrap canvas');
-    if (!canvas) return;
-    const a = document.createElement('a');
-    a.download = `generative-${Date.now()}.png`;
-    a.href = canvas.toDataURL('image/png');
-    a.click();
+    const artboard = document.getElementById('artboard');
+    if (!artboard) return;
+
+    // Use html2canvas to capture everything inside the artboard (canvas + overlays)
+    html2canvas(artboard, {
+      backgroundColor: null,
+      useCORS: true,
+      scale: 2, // Export at 2x resolution for better quality
+      logging: false,
+    }).then(canvas => {
+      const a = document.createElement('a');
+      a.download = `generative-${Date.now()}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    });
   });
 
   document.getElementById('btn-random').addEventListener('click', randomize);
