@@ -1,90 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Generative Canvas · Curve-Driven Composition</title>
-  <meta name="description" content="A modular, curve-driven generative canvas system built with p5.js. Control symmetrical rectangle compositions with live GUI parameters." />
+  <meta name="description"
+    content="A modular, curve-driven generative canvas system built with p5.js. Control symmetrical rectangle compositions with live GUI parameters." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
 
-<div id="app">
+  <div id="app">
 
-  <!-- ── Canvas Viewport ──────────────────────────────────── -->
-  <div id="canvas-wrap">
-    <div id="artboard">
-      <div id="p5-target">
-        <!-- p5.js injects its canvas here -->
-      </div>
-      <div id="overlays" style="display: none;"> <!-- Shown when DOM is ready -->
-        <div id="overlay-headline" class="overlay-layer">
-          <div id="headline-l1" class="headline-text">Start with a prompt</div>
-          <div id="headline-l2" class="headline-text">End with a presentation</div>
+    <!-- ── Canvas Viewport ──────────────────────────────────── -->
+    <div id="canvas-wrap">
+      <div id="artboard">
+        <div id="p5-target">
+          <!-- p5.js injects its canvas here -->
         </div>
-        <div id="overlay-image" class="overlay-layer">
-          <div id="image-placeholder-inner">
-            <img id="uploaded-image" style="display:none;" />
-            <svg id="placeholder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+        <div id="overlays" style="display: none;"> <!-- Shown when DOM is ready -->
+          <div id="overlay-headline" class="overlay-layer">
+            <div id="headline-l1" class="headline-text">Start with a prompt</div>
+            <div id="headline-l2" class="headline-text">End with a presentation</div>
           </div>
-        </div>
-        <div id="overlay-footer" class="overlay-layer">
-          <div id="footer-byline">Start for free today</div>
-          <div class="footer-logo-wrap">
-            <img src="pai wordmark.svg" class="pai-logo" alt="presentations.ai" />
+          <div id="overlay-image" class="overlay-layer">
+            <div id="image-placeholder-inner">
+              <img id="uploaded-image" style="display:none;" />
+              <svg id="placeholder-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+              </svg>
+            </div>
+          </div>
+          <div id="overlay-footer" class="overlay-layer">
+            <div id="footer-byline">Start for free today</div>
+            <div class="footer-logo-wrap">
+              <img src="pai wordmark.svg" class="pai-logo" alt="presentations.ai" />
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- ── Control Panel ────────────────────────────────────── -->
+    <aside id="panel" class="ignore-export">
+
+      <div id="panel-header">
+        <h1>Generative</h1>
+        <h2>Canvas System</h2>
+      </div>
+
+      <div id="panel-scroll">
+        <!-- Sections injected by gui.js after DOM ready -->
+      </div>
+
+      <div id="panel-footer">
+        <button class="btn" id="btn-random" title="Randomize all parameters">⚄ Random</button>
+        <button class="btn primary" id="btn-export" title="Export canvas as PNG">↓ Export PNG</button>
+      </div>
+
+    </aside>
+
   </div>
 
-  <!-- ── Control Panel ────────────────────────────────────── -->
-  <aside id="panel">
+  <!-- 1. Shared globals: state, getCurveValue, color utils ─── -->
+  <script src="shared.js"></script>
 
-    <div id="panel-header">
-      <h1>Generative</h1>
-      <h2>Canvas System</h2>
-    </div>
+  <!-- 2. p5.js library ─────────────────────────────────────── -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
 
-    <div id="panel-scroll">
-      <!-- Sections injected by gui.js after DOM ready -->
-    </div>
+  <!-- 3. p5 sketch (reads from shared.js globals) ─────────── -->
+  <script src="sketch.js"></script>
 
-    <div id="panel-footer">
-      <button class="btn" id="btn-random" title="Randomize all parameters">⚄ Random</button>
-      <button class="btn primary" id="btn-export" title="Export canvas as PNG">↓ Export PNG</button>
-    </div>
+  <!-- 3.5 Capture library ──────────────────────────────────── -->
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
-  </aside>
+  <!-- 4. GUI (reads from shared.js globals, calls _p5Redraw) ─ -->
+  <script src="gui.js"></script>
 
-</div>
-
-<!-- 1. Shared globals: state, getCurveValue, color utils ─── -->
-<script src="shared.js"></script>
-
-<!-- 2. p5.js library ─────────────────────────────────────── -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
-
-<!-- 3. p5 sketch (reads from shared.js globals) ─────────── -->
-<script src="sketch.js"></script>
-
-<!-- 3.5 Capture library ──────────────────────────────────── -->
-<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-
-<!-- 4. GUI (reads from shared.js globals, calls _p5Redraw) ─ -->
-<script src="gui.js"></script>
-
-<!-- 5. Window resize handler ─────────────────────────────── -->
-<script>
-  let _rt;
-  window.addEventListener('resize', () => {
-    clearTimeout(_rt);
-    _rt = setTimeout(() => { if (window._p5Resize) window._p5Resize(); }, 120);
-  });
-</script>
+  <!-- 5. Window resize handler ─────────────────────────────── -->
+  <script>
+    let _rt;
+    window.addEventListener('resize', () => {
+      clearTimeout(_rt);
+      _rt = setTimeout(() => { if (window._p5Resize) window._p5Resize(); }, 120);
+    });
+  </script>
 
 </body>
+
 </html>

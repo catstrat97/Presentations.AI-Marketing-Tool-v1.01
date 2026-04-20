@@ -88,11 +88,13 @@ html, body {
 /* Headline Overlay */
 #overlay-headline {
   width: 100%;
-  top: calc(206.36px * var(--scale));
+  top: calc(206.36px * var(--scale)); /* default; overridden by JS */
   left: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  padding-left: 0; /* overridden by JS */
+  padding-right: 0;
 }
 .headline-text {
   font-family: var(--innovator);
@@ -100,8 +102,9 @@ html, body {
   font-size: calc(120px * var(--scale));
   line-height: 1.1;
   letter-spacing: calc(-4.8px * var(--scale));
-  color: #fff;
+  color: #fff; /* overridden by JS applyTextAdaptation() */
   white-space: pre;
+  transition: color 0.2s, text-shadow 0.2s;
 }
 
 /* Image Placeholder Overlay */
@@ -171,10 +174,11 @@ html, body {
   font-family: var(--innovator);
   font-weight: 500;
   font-size: calc(54.517px * var(--scale));
-  color: #fff;
+  color: #fff; /* overridden by JS applyTextAdaptation() */
   line-height: 1.1;
   letter-spacing: calc(-1.6355px * var(--scale));
   white-space: nowrap;
+  transition: color 0.2s;
 }
 
 .footer-logo-wrap {
@@ -187,6 +191,8 @@ html, body {
   width: auto;
   display: block;
   object-fit: contain;
+  /* Keeps logo readable on any background */
+  mix-blend-mode: normal;
 }
 
 /* ── Side Panel ───────────────────────────────────────────── */
@@ -520,7 +526,55 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
 .stop-delete:disabled { color: var(--border); cursor: not-allowed; }
 
 /* ── Gradient Actions Row ─────────────────────────────────── */
+.grad-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.subdivide-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.subdivide-input {
+  width: 36px !important;
+}
 .subdivide-input:focus {
   border-color: var(--accent);
 }
 
+/* ── Background Preset Swatches ───────────────────────────── */
+.bg-swatch-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.bg-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.bg-swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* ── Multi Image Instance ─────────────────────────────────── */
+.img-instance {
+  flex-shrink: 0;
+}
+
+/* ── Shuffle button full width ────────────────────────────── */
+#btn-shuffle-imgs {
+  width: 100%;
+  margin-top: 4px;
+}
