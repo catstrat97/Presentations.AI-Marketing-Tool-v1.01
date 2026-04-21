@@ -534,6 +534,20 @@ const ICONS = {
   asp191x1: `<svg viewBox="0 0 16 16" width="16" height="16"><rect x="0.5" y="5.5" width="15"  height="5"   rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
 };
 
+// Generate a tiny SVG preview of a curve type using getCurveValue
+function curveThumbSvg(type) {
+  const W = 40, H = 22, S = 32, P = 2;
+  let d = '';
+  for (let i = 0; i <= S; i++) {
+    const t = i / S;
+    const v = Math.max(0, Math.min(1, getCurveValue(t, type)));
+    const x = P + t * (W - P * 2);
+    const y = H - P - v * (H - P * 2);
+    d += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ' ' + y.toFixed(2);
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+}
+
 function mkInput({ id, label, key, onChange }) {
   const wrap = document.createElement('div'); wrap.className = 'control-row';
   const lbl  = document.createElement('label'); lbl.htmlFor = id; lbl.textContent = label;
@@ -756,9 +770,18 @@ function buildGUI() {
 
   // Shared
   graphSec.content.appendChild(mkSlider({ id:'ctrl-extent',    label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
-  graphSec.content.appendChild(mkSelect({ id:'ctrl-curve',     label:'Curve Distribution',    key:'curveType',
-    options:[['flat','Flat'],['linear','Linear'],['quadratic','Quadratic'],['cubic','Cubic'],
-             ['parabolic','Parabolic — Peak Center'],['hyperbolic','Hyperbolic'],['bezier','Bezier']] }));
+  graphSec.content.appendChild(mkSegmented({
+    id:'ctrl-curve', label:'Curve Distribution', key:'curveType', variant:'grid grid-4',
+    options:[
+      ['flat',       curveThumbSvg('flat'),       'Flat'],
+      ['linear',     curveThumbSvg('linear'),     'Linear'],
+      ['quadratic',  curveThumbSvg('quadratic'),  'Quadratic'],
+      ['cubic',      curveThumbSvg('cubic'),      'Cubic'],
+      ['parabolic',  curveThumbSvg('parabolic'),  'Parabolic — Peak Center'],
+      ['hyperbolic', curveThumbSvg('hyperbolic'), 'Hyperbolic'],
+      ['bezier',     curveThumbSvg('bezier'),     'Bezier'],
+    ],
+  }));
   graphSec.content.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
 
   const cvWrap = document.createElement('div'); cvWrap.className = 'control-row';
@@ -949,7 +972,6 @@ function syncControlsToState() {
 
   // Selects
   [
-    ['ctrl-curve',       'curveType'],
     ['ctrl-circle-align','circleAlignment'],
     ['ctrl-palette',     'palette'],
     ['ctrl-img-style',   'imageStyle'],
@@ -959,6 +981,7 @@ function syncControlsToState() {
   [
     ['ctrl-aspect',       'aspectRatio'],
     ['ctrl-baseline',     'baseline'],
+    ['ctrl-curve',        'curveType'],
     ['ctrl-grad-dir',     'gradientDirection'],
     ['ctrl-hl-align',     'headlineAlign'],
     ['ctrl-ft-align',     'footerAlign'],

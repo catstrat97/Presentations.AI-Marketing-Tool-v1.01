@@ -557,6 +557,31 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   padding: 10px 0;
 }
 
+/* Grid variant — buttons are independent tiles, useful for 5+ options */
+.segmented.grid {
+  display: grid;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  overflow: visible;
+}
+.segmented.grid.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.segmented.grid.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.segmented.grid .seg-btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 2px;
+  background: var(--input-bg);
+}
+.segmented.grid .seg-btn + .seg-btn {
+  border-left: 1px solid var(--border);
+}
+.segmented.grid .seg-btn.active {
+  border-color: var(--accent);
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
 /* ── Curve Preview ────────────────────────────────────────── */
 #curve-preview {
   width: 100%;
