@@ -326,38 +326,49 @@ function renderStopList() {
 }
 
 function syncPaletteSelect() {
-  const el = document.getElementById('ctrl-palette');
-  if (el) el.value = state.palette;
+  const row = document.getElementById('ctrl-palette');
+  if (!row) return;
+  row.querySelectorAll('.palette-sw').forEach(s => s.classList.toggle('active', s.dataset.value === state.palette));
 }
 
 // ══════════════════════════════════════════════════════════════
 // GRADIENT SECTION
 // ══════════════════════════════════════════════════════════════
 function buildGradientSection(sec) {
-  // Palette select — only Warm / Cool / Custom
+  // Palette swatches — gradient previews
   const palWrap = document.createElement('div'); palWrap.className = 'control-row';
-  const palLabel = document.createElement('label'); palLabel.htmlFor = 'ctrl-palette'; palLabel.textContent = 'Palette';
-  const palSel = document.createElement('select'); palSel.id = 'ctrl-palette';
+  const palLabel = document.createElement('label'); palLabel.textContent = 'Palette';
+  palWrap.appendChild(palLabel);
+  const palRow = document.createElement('div'); palRow.className = 'palette-row'; palRow.id = 'ctrl-palette';
 
-  const customOpt = document.createElement('option'); customOpt.value = 'custom'; customOpt.textContent = 'Custom';
-  palSel.appendChild(customOpt);
-  Object.entries(PALETTES).forEach(([key, p]) => {
-    if (key === 'custom') return;
-    const opt = document.createElement('option'); opt.value = key; opt.textContent = p.label;
-    palSel.appendChild(opt);
-  });
-  palSel.value = state.palette;
-  palSel.addEventListener('change', () => {
-    state.palette = palSel.value;
-    if (state.palette !== 'custom') applyPalette(state.palette);
-    // Auto-set stroke style based on tone
+  const selectPalette = (key) => {
+    state.palette = key;
+    if (key !== 'custom') applyPalette(key);
     const tone = getPaletteTone();
     state.imageStrokeStyle = (tone === 'cool') ? 'frosty' : 'marketing';
+    palRow.querySelectorAll('.palette-sw').forEach(s => s.classList.toggle('active', s.dataset.value === key));
     rebuildBgSwatches();
     updateOverlays();
     renderStopList();
+  };
+
+  Object.entries(PALETTES).forEach(([key, p]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.value = key;
+    btn.title = p.label;
+    btn.className = 'palette-sw' + (state.palette === key ? ' active' : '') + (key === 'custom' ? ' custom' : '');
+    const sw = document.createElement('span'); sw.className = 'palette-sw-fill';
+    if (p.stops) {
+      const css = p.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
+      sw.style.background = `linear-gradient(90deg, ${css})`;
+    }
+    const cap = document.createElement('span'); cap.className = 'palette-sw-label'; cap.textContent = p.label;
+    btn.appendChild(sw); btn.appendChild(cap);
+    btn.addEventListener('click', () => selectPalette(key));
+    palRow.appendChild(btn);
   });
-  palWrap.appendChild(palLabel); palWrap.appendChild(palSel);
+  palWrap.appendChild(palRow);
   sec.appendChild(palWrap);
 
   sec.appendChild(mkSegmented({
@@ -998,13 +1009,14 @@ function syncControlsToState() {
 
   // Selects
   [
-    ['ctrl-palette',     'palette'],
     ['ctrl-img-style',   'imageStyle'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.value = state[key]; });
 
   // Anchor grid
   const anchor = document.getElementById('ctrl-circle-align');
   if (anchor) anchor.querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.value === state.circleAlignment));
+
+  syncPaletteSelect();
 
   // Segmented controls
   [

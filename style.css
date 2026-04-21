@@ -582,6 +582,42 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   color: var(--text);
 }
 
+/* ── Palette Swatches ────────────────────────────────────── */
+.palette-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.palette-sw {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.palette-sw:hover { border-color: var(--text-dim); }
+.palette-sw.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.palette-sw-fill {
+  display: block;
+  height: 18px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(45deg, #2a2a30 0 4px, #1a1a20 4px 8px);
+}
+.palette-sw-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  font-weight: 500;
+}
+.palette-sw.active .palette-sw-label { color: var(--text); }
+
 /* ── Anchor Position Grid ────────────────────────────────── */
 .anchor-grid {
   display: grid;
