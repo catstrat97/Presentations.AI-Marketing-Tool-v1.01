@@ -548,6 +548,35 @@ function curveThumbSvg(type) {
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
 }
 
+// 3x3 anchor position picker: cells arranged in a grid, each selects one of
+// the nine named positions (top-left, top-center, ..., bottom-right).
+function mkAnchorGrid({ id, label, key, onChange }) {
+  const wrap = document.createElement('div'); wrap.className = 'control-row';
+  const lbl = document.createElement('label'); lbl.textContent = label;
+  wrap.appendChild(lbl);
+  const grid = document.createElement('div'); grid.className = 'anchor-grid'; grid.id = id;
+  const positions = [
+    'top-left','top-center','top-right',
+    'center-left','center','center-right',
+    'bottom-left','bottom-center','bottom-right',
+  ];
+  positions.forEach(value => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'anchor-cell' + (state[key] === value ? ' active' : '');
+    btn.dataset.value = value;
+    btn.title = value.replace('-', ' ');
+    btn.addEventListener('click', () => {
+      state[key] = value;
+      grid.querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.value === value));
+      if (onChange) onChange(value); else redraw();
+    });
+    grid.appendChild(btn);
+  });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
 function mkInput({ id, label, key, onChange }) {
   const wrap = document.createElement('div'); wrap.className = 'control-row';
   const lbl  = document.createElement('label'); lbl.htmlFor = id; lbl.textContent = label;
@@ -748,10 +777,7 @@ function buildGUI() {
   groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',      label:'Max Diameter',      min:50, max:2000, step:10, key:'circleDiameter' }));
   groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x',   label:'X Center Offset',  min:0,  max:1000, step:1,  key:'circleSpacingX' }));
   groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y',   label:'Y Center Offset',  min:0,  max:1000, step:1,  key:'circleSpacingY' }));
-  groupCirc.appendChild(mkSelect({ id:'ctrl-circle-align',  label:'Anchor Position',  key:'circleAlignment',
-    options:[['top-left','↖ Top Left'],['top-center','↑ Top Center'],['top-right','↗ Top Right'],
-             ['center-left','← Center Left'],['center','⇿ Center'],['center-right','→ Center Right'],
-             ['bottom-left','↙ Bottom Left'],['bottom-center','↓ Bottom Center'],['bottom-right','↘ Bottom Right']] }));
+  groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align', label:'Anchor Position', key:'circleAlignment' }));
   groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror', label:'Mirror X & Y Axis', key:'circleMirrorXY' }));
 
   graphSec.content.appendChild(groupRect);
@@ -972,10 +998,13 @@ function syncControlsToState() {
 
   // Selects
   [
-    ['ctrl-circle-align','circleAlignment'],
     ['ctrl-palette',     'palette'],
     ['ctrl-img-style',   'imageStyle'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.value = state[key]; });
+
+  // Anchor grid
+  const anchor = document.getElementById('ctrl-circle-align');
+  if (anchor) anchor.querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.value === state.circleAlignment));
 
   // Segmented controls
   [
