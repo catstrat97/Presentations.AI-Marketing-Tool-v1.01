@@ -24,7 +24,7 @@ Then open http://localhost:8000.
 - `gui.js` — control panel, overlay updates, randomize
 - `style.css` — panel + overlay styling
 - `Image Presets/` — preset images used by the Image Placeholder overlay
-- `InnovatorGrotesk-*.otf` — headline/footer font
+- `fonts/InnovatorGrotesk-*.otf` — headline/footer font
 - `pai-wordmark.svg` — footer logo
 
 ## Export
