@@ -188,8 +188,9 @@ function updateOverlays() {
   const byline      = document.getElementById('footer-byline');
 
   if (h1 && h2 && overlayHead) {
-    h1.textContent = state.headlineLine1;
-    h2.textContent = state.headlineLine2;
+    // Don't stomp the caret while the user is editing in-place
+    if (document.activeElement !== h1) h1.textContent = state.headlineLine1;
+    if (document.activeElement !== h2) h2.textContent = state.headlineLine2;
     overlayHead.style.textAlign    = state.headlineAlign;
     overlayHead.style.display      = state.showHeadline ? 'flex' : 'none';
     overlayHead.style.top          = `calc(${state.headlineYPos}px * var(--scale))`;
@@ -926,6 +927,25 @@ document.addEventListener('DOMContentLoaded', () => {
       if (up) up.click();
     });
   }
+
+  // Inline-editable headlines on the canvas, kept in sync with panel inputs
+  [
+    { el: 'headline-l1', stateKey: 'headlineLine1', inputId: 'ctrl-hl-l1' },
+    { el: 'headline-l2', stateKey: 'headlineLine2', inputId: 'ctrl-hl-l2' },
+  ].forEach(({ el, stateKey, inputId }) => {
+    const node = document.getElementById(el);
+    if (!node) return;
+    node.contentEditable = 'true';
+    node.spellcheck = false;
+    node.addEventListener('input', () => {
+      state[stateKey] = node.textContent;
+      const inp = document.getElementById(inputId);
+      if (inp) inp.value = state[stateKey];
+    });
+    node.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); node.blur(); }
+    });
+  });
 
   // Export — delegates to sketch.js _exportCanvas
   document.getElementById('btn-export').addEventListener('click', () => {

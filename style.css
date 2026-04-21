@@ -95,6 +95,7 @@ html, body {
   justify-content: center;
   padding-left: 0; /* overridden by JS */
   padding-right: 0;
+  pointer-events: auto;
 }
 .headline-text {
   font-family: var(--innovator);
@@ -105,6 +106,12 @@ html, body {
   color: #fff; /* overridden by JS applyTextAdaptation() */
   white-space: pre;
   transition: color 0.2s, text-shadow 0.2s;
+  cursor: text;
+  outline: none;
+}
+.headline-text:focus {
+  /* subtle hint while editing; not captured by html2canvas export */
+  box-shadow: inset 0 -2px 0 0 currentColor;
 }
 
 /* Image Placeholder Overlay */
