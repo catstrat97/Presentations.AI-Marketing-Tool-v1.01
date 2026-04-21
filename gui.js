@@ -360,11 +360,11 @@ function buildGradientSection(sec) {
   palWrap.appendChild(palLabel); palWrap.appendChild(palSel);
   sec.appendChild(palWrap);
 
-  sec.appendChild(mkSelect({
+  sec.appendChild(mkSegmented({
     id: 'ctrl-grad-dir', label: 'Direction', key: 'gradientDirection',
     options: [
-      ['horizontal', 'Horizontal — sweeps left → right'],
-      ['vertical',   'Vertical — sweeps top → bottom'],
+      ['horizontal', ICONS.gradH, 'Horizontal — sweeps left → right'],
+      ['vertical',   ICONS.gradV, 'Vertical — sweeps top → bottom'],
     ],
   }));
 
@@ -489,16 +489,19 @@ function mkToggle({ id, label, key, onChange }) {
   return wrap;
 }
 
-function mkSegmented({ id, label, key, options, onChange }) {
+// options: [value, labelOrHtml, title?]. If labelOrHtml contains '<' it is treated as HTML.
+function mkSegmented({ id, label, key, options, onChange, variant }) {
   const wrap = document.createElement('div'); wrap.className = 'control-row';
   const lbl  = document.createElement('label'); lbl.textContent = label;
   wrap.appendChild(lbl);
-  const seg  = document.createElement('div'); seg.className = 'segmented'; seg.id = id;
-  options.forEach(([value, text]) => {
+  const seg  = document.createElement('div'); seg.className = 'segmented' + (variant ? ' ' + variant : ''); seg.id = id;
+  options.forEach(([value, content, title]) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'seg-btn' + (state[key] === value ? ' active' : '');
-    btn.textContent = text;
+    if (typeof content === 'string' && content.includes('<')) btn.innerHTML = content;
+    else btn.textContent = content;
+    if (title) btn.title = title;
     btn.dataset.value = value;
     btn.addEventListener('click', () => {
       state[key] = value;
@@ -510,6 +513,21 @@ function mkSegmented({ id, label, key, options, onChange }) {
   wrap.appendChild(seg);
   return wrap;
 }
+
+// ── Icon library (inline SVG, 14px, currentColor) ────────────────────
+const ICONS = {
+  alignLeft:   `<svg viewBox="0 0 14 14" width="14" height="14" fill="currentColor"><rect x="1" y="2.5" width="12" height="1.6" rx="0.6"/><rect x="1" y="6" width="8" height="1.6" rx="0.6"/><rect x="1" y="9.5" width="11" height="1.6" rx="0.6"/></svg>`,
+  alignCenter: `<svg viewBox="0 0 14 14" width="14" height="14" fill="currentColor"><rect x="1" y="2.5" width="12" height="1.6" rx="0.6"/><rect x="3" y="6" width="8" height="1.6" rx="0.6"/><rect x="1.5" y="9.5" width="11" height="1.6" rx="0.6"/></svg>`,
+  alignRight:  `<svg viewBox="0 0 14 14" width="14" height="14" fill="currentColor"><rect x="1" y="2.5" width="12" height="1.6" rx="0.6"/><rect x="5" y="6" width="8" height="1.6" rx="0.6"/><rect x="2" y="9.5" width="11" height="1.6" rx="0.6"/></svg>`,
+  gradH:       `<svg viewBox="0 0 18 12" width="22" height="14"><defs><linearGradient id="__gh" x1="0" x2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.15"/><stop offset="1" stop-color="currentColor"/></linearGradient></defs><rect width="18" height="12" rx="2" fill="url(#__gh)"/></svg>`,
+  gradV:       `<svg viewBox="0 0 12 18" width="14" height="22"><defs><linearGradient id="__gv" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.15"/><stop offset="1" stop-color="currentColor"/></linearGradient></defs><rect width="12" height="18" rx="2" fill="url(#__gv)"/></svg>`,
+  distHoriz:   `<svg viewBox="0 0 16 16" width="18" height="14" fill="currentColor"><rect x="1" y="4" width="3.6" height="8" rx="0.6"/><rect x="6.2" y="4" width="3.6" height="8" rx="0.6"/><rect x="11.4" y="4" width="3.6" height="8" rx="0.6"/></svg>`,
+  distStagger: `<svg viewBox="0 0 16 16" width="18" height="14" fill="currentColor"><rect x="1" y="2" width="8" height="8" rx="0.8" opacity="0.35"/><rect x="4" y="5" width="8" height="8" rx="0.8" opacity="0.6"/><rect x="7" y="8" width="8" height="8" rx="0.8"/></svg>`,
+  baseBottom:  `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><rect x="2" y="10" width="3" height="5"/><rect x="6.5" y="4" width="3" height="11"/><rect x="11" y="10" width="3" height="5"/></svg>`,
+  baseTop:     `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><rect x="2" y="1" width="3" height="5"/><rect x="6.5" y="1" width="3" height="11"/><rect x="11" y="1" width="3" height="5"/></svg>`,
+  baseLeft:    `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><rect x="1" y="2" width="5" height="3"/><rect x="1" y="6.5" width="11" height="3"/><rect x="1" y="11" width="5" height="3"/></svg>`,
+  baseRight:   `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><rect x="10" y="2" width="5" height="3"/><rect x="4" y="6.5" width="11" height="3"/><rect x="10" y="11" width="5" height="3"/></svg>`,
+};
 
 function mkInput({ id, label, key, onChange }) {
   const wrap = document.createElement('div'); wrap.className = 'control-row';
@@ -644,16 +662,14 @@ function buildImageDistControls(sec) {
 
   multiGroup.appendChild(mkSlider({ id:'ctrl-img-count', label:'Instance Count', min:1, max:10, step:1, key:'imageMultiCount', decimals:0, onChange: () => updateOverlays() }));
 
-  const modeWrap = document.createElement('div'); modeWrap.className = 'control-row';
-  const modeLbl  = document.createElement('label'); modeLbl.textContent = 'Distribution Mode';
-  const modeSel  = document.createElement('select'); modeSel.id = 'ctrl-img-dist-mode';
-  [['horizontal','Horizontal'],['point','Point / Stagger']].forEach(([v,t]) => {
-    const o = document.createElement('option'); o.value = v; o.textContent = t;
-    if (state.imageDistMode === v) o.selected = true; modeSel.appendChild(o);
-  });
-  modeSel.addEventListener('change', () => { state.imageDistMode = modeSel.value; updateOverlays(); });
-  modeWrap.appendChild(modeLbl); modeWrap.appendChild(modeSel);
-  multiGroup.appendChild(modeWrap);
+  multiGroup.appendChild(mkSegmented({
+    id:'ctrl-img-dist-mode', label:'Distribution Mode', key:'imageDistMode',
+    options: [
+      ['horizontal', ICONS.distHoriz,   'Horizontal — row of instances'],
+      ['point',      ICONS.distStagger, 'Point / Stagger — overlapping'],
+    ],
+    onChange: () => updateOverlays(),
+  }));
 
   multiGroup.appendChild(mkSlider({ id:'ctrl-img-multi-spacing', label:'Spacing / Stagger', min:0, max:200, step:4, key:'imageMultiSpacing', decimals:0, onChange: () => updateOverlays() }));
   sec.appendChild(multiGroup);
@@ -773,7 +789,9 @@ function buildGUI() {
   hlSec.content.appendChild(mkInput({ id:'ctrl-hl-l1', label:'Line 1', key:'headlineLine1', onChange: updateOverlays }));
   hlSec.content.appendChild(mkInput({ id:'ctrl-hl-l2', label:'Line 2', key:'headlineLine2', onChange: updateOverlays }));
   hlSec.content.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'Font Type',  key:'headlineFont',  options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSelect({ id:'ctrl-hl-align', label:'Alignment',  key:'headlineAlign', options:[['left','Left'],['center','Center'],['right','Right']], onChange: updateOverlays }));
+  hlSec.content.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'Alignment', key:'headlineAlign',
+    options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
+    onChange: updateOverlays }));
   hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-lh',       label:'Line Height', min:0.5, max:2.5, step:0.05, key:'headlineLineHeight', decimals:2, onChange: updateOverlays }));
   hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-fs',       label:'Font Size',   min:10,  max:300, step:1,    key:'headlineFontSize',   decimals:0, onChange: updateOverlays }));
   hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-y',        label:'Y Position',  min:0,   max:1500,step:1,    key:'headlineYPos',       decimals:0, onChange: updateOverlays }));
@@ -804,7 +822,14 @@ function buildGUI() {
   imgSec.content.appendChild(mkSubLabel('Position & Style', 12));
   imgSec.content.appendChild(mkSlider({ id:'ctrl-img-scale', label:'Scale',          min:0.1, max:2,   step:0.01, key:'imageScale',       decimals:2, onChange: updateOverlays }));
   imgSec.content.appendChild(mkSlider({ id:'ctrl-img-y',     label:'Y-Axis Offset',  min:-1500,max:1500,step:10,  key:'imageYOffset',     decimals:0, onChange: updateOverlays }));
-  imgSec.content.appendChild(mkSelect({ id:'ctrl-img-stroke',label:'Stroke Preset',  key:'imageStrokeStyle', options:[['marketing','Marketing Warm'],['frosty','Frosty Glass']], onChange: updateOverlays }));
+  imgSec.content.appendChild(mkSegmented({
+    id:'ctrl-img-stroke', label:'Stroke Preset', key:'imageStrokeStyle',
+    options: [
+      ['marketing', `<span class="stroke-sw marketing"></span><span class="seg-caption">Warm</span>`,   'Marketing Warm'],
+      ['frosty',    `<span class="stroke-sw frosty"></span><span class="seg-caption">Frosty</span>`, 'Frosty Glass'],
+    ],
+    onChange: updateOverlays,
+  }));
   // Corner radius clamped 0–40
   imgSec.content.appendChild(mkSlider({ id:'ctrl-img-rad',   label:'Corner Radius',  min:0, max:40, step:1, key:'imageRadius', decimals:0, onChange: updateOverlays }));
   imgSec.content.appendChild(mkSlider({ id:'ctrl-img-sop',   label:'Stroke Opacity', min:0, max:1,  step:0.01, key:'imageStrokeOp',    decimals:2, onChange: updateOverlays }));
@@ -815,7 +840,9 @@ function buildGUI() {
   const ftSec = mkSection('Footer', 'showFooter');
   ftSec.content.appendChild(mkInput({ id:'ctrl-ft-byline',   label:'Byline',    key:'footerByline', onChange: updateOverlays }));
   ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-font',   label:'Font Type', key:'footerFont',   options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-  ftSec.content.appendChild(mkSelect({ id:'ctrl-ft-align',  label:'Alignment', key:'footerAlign',  options:[['left','Left'],['center','Center'],['right','Right']], onChange: updateOverlays }));
+  ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'Alignment', key:'footerAlign',
+    options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
+    onChange: updateOverlays }));
   scroll.appendChild(ftSec.sec);
 }
 
@@ -909,12 +936,24 @@ function syncControlsToState() {
     ['ctrl-aspect',      'aspectRatio'],
     ['ctrl-baseline',    'baseline'],
     ['ctrl-circle-align','circleAlignment'],
-    ['ctrl-grad-dir',    'gradientDirection'],
     ['ctrl-palette',     'palette'],
     ['ctrl-img-style',   'imageStyle'],
-    ['ctrl-img-dist-mode','imageDistMode'],
-    ['ctrl-img-stroke',  'imageStrokeStyle'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.value = state[key]; });
+
+  // Segmented controls
+  [
+    ['ctrl-grad-dir',     'gradientDirection'],
+    ['ctrl-hl-align',     'headlineAlign'],
+    ['ctrl-ft-align',     'footerAlign'],
+    ['ctrl-img-dist-mode','imageDistMode'],
+    ['ctrl-img-stroke',   'imageStrokeStyle'],
+    ['ctrl-hl-font',      'headlineFont'],
+    ['ctrl-ft-font',      'footerFont'],
+  ].forEach(([id, key]) => {
+    const seg = document.getElementById(id);
+    if (!seg) return;
+    seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === String(state[key])));
+  });
 
   // Color
   const bg = document.getElementById('ctrl-bgcolor'); if (bg) bg.value = state.bgColor;
