@@ -137,8 +137,9 @@ const state = {
   circleSpacingX:   0,
   circleSpacingY:   0,
   circleFlipAnchor: false,
+  circleStagger:    0,
   circleTextLink:   false,
-  circleTextPadding: 100,
+  circleTextPadding: 0,
 
   // Shared
   gradientDirection: 'horizontal',

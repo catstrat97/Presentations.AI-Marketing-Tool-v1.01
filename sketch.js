@@ -357,33 +357,32 @@ function getHeadlineBBox() {
 function renderCircularComposition(p) {
   const count = Math.max(2, Math.floor(state.circleCount));
   const maxD  = state.circleDiameter;
-  // Smallest circle is 25 % of max diameter (floored at 60 px) so it stays visible.
+  // Smallest circle = 25 % of max (floored at 60 px) so it stays visible.
   const minD  = Math.max(60, maxD * 0.25);
   const maxR  = maxD / 2;
   const minR  = minD / 2;
   const dc    = p.drawingContext;
   const align = state.circleAlignment;
 
-  // ── Anchor reference radius ───────────────────────────────────
-  // All circles share one concentric centre point.  The "reference radius"
-  // determines which circle sits exactly at the anchor boundary:
-  //
-  //   circleFlipAnchor = false (default)
-  //     refR = maxR  → largest circle's edge is at the anchor boundary;
-  //                    smaller circles nest inside and do not reach the edge.
-  //
-  //   circleFlipAnchor = true  (flip)
-  //     refR = minR  → smallest circle's edge is at the anchor boundary;
-  //                    larger circles bleed beyond the boundary (no deformation).
+  // ── Reference radius ──────────────────────────────────────────
+  // refR controls which circle sits exactly at the anchor boundary.
+  //   false (default) → refR = maxR : largest circle's edge at boundary,
+  //                                   smaller circles nest inside.
+  //   true  (flip)    → refR = minR : smallest circle's edge at boundary,
+  //                                   larger circles bleed beyond it.
   const refR = state.circleFlipAnchor ? minR : maxR;
 
-  // Compute the shared centre once, from refR.
+  // ── Anchor centre ─────────────────────────────────────────────
   let anchorX = cw / 2, anchorY = ch / 2;
 
   if (state.circleTextLink) {
-    // Text-driven X: position circles to the right of the headline bounding box.
     const bbox = getHeadlineBBox();
-    if (bbox) anchorX = bbox.x + bbox.w + state.circleTextPadding;
+    if (bbox) {
+      // Auto-pad = half the measured text-box height (scales with text size).
+      // circleTextPadding adds extra pixels on top for fine-tuning.
+      const autoPad = Math.round(bbox.h * 0.5) + state.circleTextPadding;
+      anchorX = bbox.x + bbox.w + autoPad;
+    }
   } else {
     if      (align.includes('left'))  anchorX = refR;
     else if (align.includes('right')) anchorX = cw - refR;
@@ -391,16 +390,36 @@ function renderCircularComposition(p) {
   if      (align.includes('top'))    anchorY = refR;
   else if (align.includes('bottom')) anchorY = ch - refR;
 
-  // Every circle shares this same centre — flat/concentric distribution.
-  const cx = anchorX;
-  const cy = anchorY;
+  // ── Stagger ───────────────────────────────────────────────────
+  // Each circle is offset from the anchor toward the canvas centre by
+  // (fillT × effectiveStagger).  fillT = 0 → largest at anchor;
+  // fillT = 1 → smallest furthest inward.
+  //
+  // Direction is always from the anchor toward the canvas midpoint,
+  // so the composition fans inward regardless of which anchor is chosen.
+  const staggerDirX = Math.sign(cw / 2 - anchorX);
+  const staggerDirY = Math.sign(ch / 2 - anchorY);
+
+  // Mirror-mode guard: cap stagger so no circle crosses the canvas midpoint,
+  // guaranteeing the two reflected groups never overlap.
+  // (circles may still bleed outside the canvas — size is never deformed.)
+  let effectiveStagger = state.circleStagger;
+  if (state.circleMirrorXY && effectiveStagger > 0) {
+    if (staggerDirX !== 0)
+      effectiveStagger = Math.min(effectiveStagger, Math.max(0, Math.abs(anchorX - cw / 2)));
+    if (staggerDirY !== 0)
+      effectiveStagger = Math.min(effectiveStagger, Math.max(0, Math.abs(anchorY - ch / 2)));
+  }
 
   for (let i = 0; i < count; i++) {
     const fillT    = count > 1 ? i / (count - 1) : 0;
-    const currentD = maxD - (maxD - minD) * fillT;  // largest → smallest
+    const currentD = maxD - (maxD - minD) * fillT;   // largest → smallest
     const R        = currentD / 2;
 
-    // moveAndDraw applies the optional fine-tune spacing offset, then renders.
+    // Per-circle centre: stagger shifts each ring inward from the anchor.
+    const cx = anchorX + staggerDirX * effectiveStagger * fillT;
+    const cy = anchorY + staggerDirY * effectiveStagger * fillT;
+
     function moveAndDraw(px, py, flipX = false) {
       const vx = px - cw / 2, vy = py - ch / 2;
       const dx = Math.abs(vx) < 0.5 ? 0 : Math.sign(vx);
@@ -417,8 +436,9 @@ function renderCircularComposition(p) {
     moveAndDraw(cx, cy, false);
 
     if (state.circleMirrorXY) {
-      // Cartesian-plane mirror: reflect the shared centre around the canvas midpoint.
-      // Circles may bleed outside the canvas — geometry is never scaled or deformed.
+      // Reflect the staggered (cx, cy) around the canvas midpoint.
+      // Because stagger is capped above, the reflected group cascades
+      // symmetrically from the opposite edge with no overlap.
       const mx = cw - cx;
       const my = ch - cy;
       const notCenterH = Math.abs(cx - cw / 2) > 0.5;

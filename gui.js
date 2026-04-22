@@ -816,8 +816,9 @@ function buildGUI() {
 
   // Circular Group
   const groupCirc = document.createElement('div'); groupCirc.id = 'group-circ'; groupCirc.className = 'ctrl-group' + (state.compositionType==='circular'?' active':'');
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',  label:'Circle Count',    min:2,  max:40,   step:1,  key:'circleCount' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',      label:'Max Diameter',    min:50, max:2000, step:10, key:'circleDiameter' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',   label:'Circle Count',  min:2,  max:40,   step:1,  key:'circleCount' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',       label:'Max Diameter',  min:50, max:2000, step:10, key:'circleDiameter' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-stagger', label:'Stagger',       min:0,  max:800,  step:5,  key:'circleStagger' }));
   groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align', label:'Anchor Position', key:'circleAlignment' }));
   groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',      label:'Mirror X & Y Axis',             key:'circleMirrorXY'   }));
   groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor', label:'Flip Anchor — smallest at boundary', key:'circleFlipAnchor' }));
@@ -830,7 +831,7 @@ function buildGUI() {
       redraw();
     },
   }));
-  const textPadRow = mkSlider({ id:'ctrl-circle-text-padding', label:'Text Padding', min:0, max:600, step:10, key:'circleTextPadding' });
+  const textPadRow = mkSlider({ id:'ctrl-circle-text-padding', label:'Text Gap (extra px)', min:-200, max:400, step:10, key:'circleTextPadding' });
   textPadRow.style.display = state.circleTextLink ? '' : 'none';
   groupCirc.appendChild(textPadRow);
   groupCirc.appendChild(mkSubLabel('Fine Tune'));
@@ -1048,11 +1049,12 @@ function randomize() {
 function syncControlsToState() {
   // Sliders with numeric display
   [
-    ['ctrl-count',             'rectCount',          0],
-    ['ctrl-circle-count',      'circleCount',         0],
-    ['ctrl-diameter',          'circleDiameter',      0],
-    ['ctrl-circle-sp-x',       'circleSpacingX',      0],
-    ['ctrl-circle-sp-y',       'circleSpacingY',      0],
+    ['ctrl-count',              'rectCount',          0],
+    ['ctrl-circle-count',       'circleCount',        0],
+    ['ctrl-diameter',           'circleDiameter',     0],
+    ['ctrl-circle-stagger',     'circleStagger',      0],
+    ['ctrl-circle-sp-x',        'circleSpacingX',     0],
+    ['ctrl-circle-sp-y',        'circleSpacingY',     0],
     ['ctrl-circle-text-padding','circleTextPadding',  0],
     ['ctrl-spacing',           'spacing',             1],
     ['ctrl-extent',            'extent',              2],
