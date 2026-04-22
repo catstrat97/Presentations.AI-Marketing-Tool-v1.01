@@ -816,30 +816,37 @@ function buildGUI() {
 
   // Circular Group
   const groupCirc = document.createElement('div'); groupCirc.id = 'group-circ'; groupCirc.className = 'ctrl-group' + (state.compositionType==='circular'?' active':'');
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',  label:'Circle Count',     min:2,  max:40,   step:1,  key:'circleCount' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',      label:'Max Diameter',      min:50, max:2000, step:10, key:'circleDiameter' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x',   label:'X Center Offset',  min:0,  max:1000, step:1,  key:'circleSpacingX' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y',   label:'Y Center Offset',  min:0,  max:1000, step:1,  key:'circleSpacingY' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',  label:'Circle Count',    min:2,  max:40,   step:1,  key:'circleCount' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',      label:'Max Diameter',    min:50, max:2000, step:10, key:'circleDiameter' }));
   groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align', label:'Anchor Position', key:'circleAlignment' }));
-  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror', label:'Mirror X & Y Axis', key:'circleMirrorXY' }));
+  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',      label:'Mirror X & Y Axis',             key:'circleMirrorXY'   }));
+  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor', label:'Flip Anchor (smallest at edge)', key:'circleFlipAnchor' }));
+  groupCirc.appendChild(mkSubLabel('Text-Aware Positioning'));
+  groupCirc.appendChild(mkToggle({
+    id:'ctrl-circle-text-link', label:'Link X to Headline', key:'circleTextLink',
+    onChange: () => {
+      document.getElementById('ctrl-circle-text-padding').closest('.control-row').style.display =
+        state.circleTextLink ? '' : 'none';
+      redraw();
+    },
+  }));
+  const textPadRow = mkSlider({ id:'ctrl-circle-text-padding', label:'Text Padding', min:0, max:600, step:10, key:'circleTextPadding' });
+  textPadRow.style.display = state.circleTextLink ? '' : 'none';
+  groupCirc.appendChild(textPadRow);
+  groupCirc.appendChild(mkSubLabel('Fine Tune'));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
 
   graphSec.content.appendChild(groupRect);
   graphSec.content.appendChild(groupCirc);
 
-  const switchType = type => {
-    state.compositionType = type;
-    cardRect.classList.toggle('active', type==='rectangle');
-    cardCirc.classList.toggle('active', type==='circular');
-    groupRect.classList.toggle('active', type==='rectangle');
-    groupCirc.classList.toggle('active', type==='circular');
-    redraw();
-  };
-  cardRect.addEventListener('click', () => switchType('rectangle'));
-  cardCirc.addEventListener('click', () => switchType('circular'));
+  // Curve controls are only relevant for rectangle composition
+  const curveWrap = document.createElement('div');
+  curveWrap.id = 'curve-controls-wrap';
+  curveWrap.style.display = state.compositionType === 'circular' ? 'none' : '';
 
-  // Shared
-  graphSec.content.appendChild(mkSlider({ id:'ctrl-extent',    label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
-  graphSec.content.appendChild(mkSegmented({
+  curveWrap.appendChild(mkSlider({ id:'ctrl-extent', label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
+  curveWrap.appendChild(mkSegmented({
     id:'ctrl-curve', label:'Curve Distribution', key:'curveType', variant:'grid grid-4',
     options:[
       ['flat',       curveThumbSvg('flat'),       'Flat'],
@@ -851,13 +858,27 @@ function buildGUI() {
       ['bezier',     curveThumbSvg('bezier'),     'Bezier'],
     ],
   }));
-  graphSec.content.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
+  curveWrap.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
 
   const cvWrap = document.createElement('div'); cvWrap.className = 'control-row';
   const cvLbl  = document.createElement('label'); cvLbl.textContent = 'Curve Preview';
   const cvCvs  = document.createElement('canvas'); cvCvs.id = 'curve-preview'; cvCvs.width = 260; cvCvs.height = 60;
   cvWrap.appendChild(cvLbl); cvWrap.appendChild(cvCvs);
-  graphSec.content.appendChild(cvWrap);
+  curveWrap.appendChild(cvWrap);
+
+  graphSec.content.appendChild(curveWrap);
+
+  const switchType = type => {
+    state.compositionType = type;
+    cardRect.classList.toggle('active', type==='rectangle');
+    cardCirc.classList.toggle('active', type==='circular');
+    groupRect.classList.toggle('active', type==='rectangle');
+    groupCirc.classList.toggle('active', type==='circular');
+    curveWrap.style.display = type === 'circular' ? 'none' : '';
+    redraw();
+  };
+  cardRect.addEventListener('click', () => switchType('rectangle'));
+  cardCirc.addEventListener('click', () => switchType('circular'));
 
   buildGradientSection(graphSec.content);
 

@@ -130,12 +130,15 @@ const state = {
   baseline:   'bottom',
 
   // Circular Composition
-  circleCount:     12,
-  circleDiameter:  600,
-  circleAlignment: 'bottom-center',
-  circleMirrorXY:  false,
-  circleSpacingX:  0,
-  circleSpacingY:  0,
+  circleCount:      12,
+  circleDiameter:   600,
+  circleAlignment:  'bottom-center',
+  circleMirrorXY:   false,
+  circleSpacingX:   0,
+  circleSpacingY:   0,
+  circleFlipAnchor: false,
+  circleTextLink:   false,
+  circleTextPadding: 100,
 
   // Shared
   gradientDirection: 'horizontal',

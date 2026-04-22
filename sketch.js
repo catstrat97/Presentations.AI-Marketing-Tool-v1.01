@@ -335,40 +335,81 @@ function renderComposition(p) {
   }
 }
 
+// ── getHeadlineBBox ──────────────────────────────────────────
+// Returns headline bounding box in canvas coordinates {x,y,w,h}.
+function getHeadlineBBox() {
+  const artboard = document.getElementById('artboard');
+  const headline = document.getElementById('overlay-headline');
+  if (!artboard || !headline || !state.showHeadline) return null;
+  const ab = artboard.getBoundingClientRect();
+  const hb = headline.getBoundingClientRect();
+  if (ab.width === 0) return null;
+  const scale = cw / ab.width;
+  return {
+    x: (hb.left - ab.left) * scale,
+    y: (hb.top  - ab.top)  * scale,
+    w: hb.width  * scale,
+    h: hb.height * scale,
+  };
+}
+
 // ── renderCircularComposition ────────────────────────────────
 function renderCircularComposition(p) {
-  const count      = Math.max(2, Math.floor(state.circleCount));
-  const maxD       = state.circleDiameter;
-  const minD       = Math.max(10, maxD * 0.05);
-  const maxStagger = ch * state.extent;
-  const dc         = p.drawingContext;
+  const count = Math.max(2, Math.floor(state.circleCount));
+  const maxD  = state.circleDiameter;
+  // Minimum is 25% of max so smallest circles remain visible and proportional
+  const minD  = Math.max(60, maxD * 0.25);
+  const maxR  = maxD / 2;
+  const dc    = p.drawingContext;
+  const align = state.circleAlignment;
+
+  // ── Compute fixed anchor using LARGEST circle (default behavior) ──
+  // All circles share one center; largest circle's edge touches the anchor boundary.
+  // circleFlipAnchor reverses this: each circle aligns its own edge to anchor.
+  let anchorX = cw / 2, anchorY = ch / 2;
+
+  if (state.circleTextLink) {
+    // Text-driven X: offset circles to right of headline bounding box
+    const bbox = getHeadlineBBox();
+    if (bbox) {
+      anchorX = bbox.x + bbox.w + state.circleTextPadding;
+    }
+  } else {
+    if (align.includes('left'))       anchorX = maxR;
+    else if (align.includes('right')) anchorX = cw - maxR;
+  }
+  if (align.includes('top'))          anchorY = maxR;
+  else if (align.includes('bottom'))  anchorY = ch - maxR;
 
   for (let i = 0; i < count; i++) {
-    const fillT = count > 1 ? i / (count - 1) : 0;
-
-    let curveVal = getCurveValue(fillT, state.curveType);
-    if (state.flipCurve) curveVal = 1 - curveVal;
-
+    const fillT    = count > 1 ? i / (count - 1) : 0;
     const currentD = maxD - (maxD - minD) * fillT;
     const R        = currentD / 2;
-    const offset   = maxStagger * curveVal;
 
-    let cx = cw / 2, cy = ch / 2;
-    const align = state.circleAlignment;
-    if (align.includes('left'))   cx = R + offset;
-    else if (align.includes('right'))  cx = cw - R - offset;
-    if (align.includes('top'))    cy = R + offset;
-    else if (align.includes('bottom')) cy = ch - R - offset;
+    let cx, cy;
+
+    if (state.circleFlipAnchor) {
+      // Flipped: each circle's own edge aligns to anchor (smallest circle at anchor edge)
+      cx = cw / 2; cy = ch / 2;
+      if (align.includes('left'))       cx = R;
+      else if (align.includes('right')) cx = cw - R;
+      if (align.includes('top'))        cy = R;
+      else if (align.includes('bottom')) cy = ch - R;
+    } else {
+      // Default: all circles share the anchor center → largest circle at anchor edge
+      cx = anchorX;
+      cy = anchorY;
+    }
 
     function moveAndDraw(px, py, flipX = false) {
-      const vx = px - cw/2, vy = py - ch/2;
+      const vx = px - cw / 2, vy = py - ch / 2;
       const dx = Math.abs(vx) < 0.5 ? 0 : Math.sign(vx);
       const dy = Math.abs(vy) < 0.5 ? 0 : Math.sign(vy);
       const finalX = px + dx * state.circleSpacingX;
       const finalY = py + dy * state.circleSpacingY;
 
       const alpha   = state.opacity;
-      const fill    = computeRectFill(dc, fillT, finalX-R, finalY-R, currentD, currentD, alpha, flipX);
+      const fill    = computeRectFill(dc, fillT, finalX - R, finalY - R, currentD, currentD, alpha, flipX);
       const fillRgb = state.innerGlow ? extractFillRgb(fillT, flipX) : null;
       renderCircle(p, finalX, finalY, R, fill, fillRgb);
     }
@@ -376,12 +417,15 @@ function renderCircularComposition(p) {
     moveAndDraw(cx, cy, false);
 
     if (state.circleMirrorXY) {
-      const mx = cw - cx, my = ch - cy;
-      const notCenterH = Math.abs(cx - cw/2) > 0.5;
-      const notCenterV = Math.abs(cy - ch/2) > 0.5;
-      if (notCenterH) moveAndDraw(mx, cy, true);
-      if (notCenterV) moveAndDraw(cx, my, false);
-      if (notCenterH && notCenterV) moveAndDraw(mx, my, true);
+      // Cartesian plane mirror: reflect around canvas center on each axis.
+      // Circles bleed outside canvas when large — geometry is never deformed.
+      const mx = cw - cx;
+      const my = ch - cy;
+      const notCenterH = Math.abs(cx - cw / 2) > 0.5;
+      const notCenterV = Math.abs(cy - ch / 2) > 0.5;
+      if (notCenterH)                moveAndDraw(mx, cy,  true);
+      if (notCenterV)                moveAndDraw(cx, my,  false);
+      if (notCenterH && notCenterV)  moveAndDraw(mx, my,  true);
     }
   }
 }
