@@ -1036,6 +1036,8 @@ function randomize() {
     groupRect.classList.toggle('active', state.compositionType==='rectangle');
     groupCirc.classList.toggle('active', state.compositionType==='circular');
   }
+  const curveEl = document.getElementById('curve-controls-wrap');
+  if (curveEl) curveEl.style.display = state.compositionType === 'circular' ? 'none' : '';
 
   rebuildBgSwatches();
   syncControlsToState();
@@ -1046,23 +1048,24 @@ function randomize() {
 function syncControlsToState() {
   // Sliders with numeric display
   [
-    ['ctrl-count',        'rectCount',         0],
-    ['ctrl-circle-count', 'circleCount',        0],
-    ['ctrl-diameter',     'circleDiameter',     0],
-    ['ctrl-circle-sp-x',  'circleSpacingX',     0],
-    ['ctrl-circle-sp-y',  'circleSpacingY',     0],
-    ['ctrl-spacing',      'spacing',            1],
-    ['ctrl-extent',       'extent',             2],
-    ['ctrl-opacity',      'opacity',            2],
-    ['ctrl-blur',         'blur',               1],
-    ['ctrl-ds-spread',    'dsSpread',           2],
-    ['ctrl-ds-opacity',   'dsOpacity',          2],
-    ['ctrl-glow-intensity','innerGlowIntensity',2],
-    ['ctrl-hl-y',         'headlineYPos',       0],
-    ['ctrl-hl-pad',       'headlinePadding',    0],
-    ['ctrl-img-rad',      'imageRadius',        0],
-    ['ctrl-img-count',    'imageMultiCount',    0],
-    ['ctrl-img-multi-spacing','imageMultiSpacing',0],
+    ['ctrl-count',             'rectCount',          0],
+    ['ctrl-circle-count',      'circleCount',         0],
+    ['ctrl-diameter',          'circleDiameter',      0],
+    ['ctrl-circle-sp-x',       'circleSpacingX',      0],
+    ['ctrl-circle-sp-y',       'circleSpacingY',      0],
+    ['ctrl-circle-text-padding','circleTextPadding',  0],
+    ['ctrl-spacing',           'spacing',             1],
+    ['ctrl-extent',            'extent',              2],
+    ['ctrl-opacity',           'opacity',             2],
+    ['ctrl-blur',              'blur',                1],
+    ['ctrl-ds-spread',         'dsSpread',            2],
+    ['ctrl-ds-opacity',        'dsOpacity',           2],
+    ['ctrl-glow-intensity',    'innerGlowIntensity',  2],
+    ['ctrl-hl-y',              'headlineYPos',        0],
+    ['ctrl-hl-pad',            'headlinePadding',     0],
+    ['ctrl-img-rad',           'imageRadius',         0],
+    ['ctrl-img-count',         'imageMultiCount',     0],
+    ['ctrl-img-multi-spacing', 'imageMultiSpacing',   0],
   ].forEach(([id, key, dec]) => {
     const el = document.getElementById(id); if (!el) return;
     el.value = state[key];
@@ -1103,14 +1106,16 @@ function syncControlsToState() {
 
   // Checkboxes
   [
-    ['ctrl-symmetry',     'symmetry'],
-    ['ctrl-mirror-y',     'mirrorY'],
-    ['ctrl-flip-curve',   'flipCurve'],
-    ['ctrl-circle-mirror','circleMirrorXY'],
-    ['ctrl-global-op',    'globalOpacity'],
-    ['ctrl-depth-shadow', 'depthShadow'],
-    ['ctrl-inner-glow',   'innerGlow'],
-    ['ctrl-img-multi',    'imageMulti'],
+    ['ctrl-symmetry',          'symmetry'],
+    ['ctrl-mirror-y',          'mirrorY'],
+    ['ctrl-flip-curve',        'flipCurve'],
+    ['ctrl-circle-mirror',     'circleMirrorXY'],
+    ['ctrl-circle-flip-anchor','circleFlipAnchor'],
+    ['ctrl-circle-text-link',  'circleTextLink'],
+    ['ctrl-global-op',         'globalOpacity'],
+    ['ctrl-depth-shadow',      'depthShadow'],
+    ['ctrl-inner-glow',        'innerGlow'],
+    ['ctrl-img-multi',         'imageMulti'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.checked = state[key]; });
 
   updateAspectLabel(state.aspectRatio);
