@@ -52,31 +52,24 @@ const PALETTES = {
   },
 };
 
-// ── Background Gradient Presets — dark gradient per palette tone ──
+// ── Background Gradient Presets — same stops as shape palettes ──
+// Each entry mirrors the colour stops from the matching PALETTES entry
+// so the background gradient always matches what's on the shapes.
 const BG_GRADIENTS = {
   marketingWarm: {
-    label: 'Warm Dark',
-    dir: 'vertical',
-    stops: [
-      { stop: 0.0, color: '#361E1C' },
-      { stop: 1.0, color: '#0C0407' },
-    ],
+    label: 'Marketing Warm',
+    dir:   'vertical',
+    get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingWarm.stops)); },
   },
   marketingCool: {
-    label: 'Cool Dark',
-    dir: 'vertical',
-    stops: [
-      { stop: 0.0, color: '#002156' },
-      { stop: 1.0, color: '#000D1F' },
-    ],
+    label: 'Marketing Cool',
+    dir:   'vertical',
+    get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingCool.stops)); },
   },
   arctic: {
-    label: 'Arctic Dark',
-    dir: 'vertical',
-    stops: [
-      { stop: 0.0, color: '#0D2040' },
-      { stop: 1.0, color: '#010810' },
-    ],
+    label: 'Arctic',
+    dir:   'vertical',
+    get stops() { return JSON.parse(JSON.stringify(PALETTES.arctic.stops)); },
   },
 };
 
