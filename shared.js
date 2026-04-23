@@ -11,6 +11,54 @@ const ASPECT_RATIOS = {
   '1.91:1': { w: 1.91, h: 1 },
 };
 
+// ── Per-Aspect-Ratio Layout Defaults ────────────────────────
+// Applied automatically when the user switches aspect ratio.
+// All values use the 2696px design-unit coordinate system
+// (same as the CSS --scale calculations).
+//
+// 1:1 values derived from Figma node 95:50741 (1410×1410 canvas).
+// Conversion: value_in_state = figma_px × (2696 / 1410).
+// Original layout defaults (used by 4:5, 16:9, 9:16, 1.91:1).
+// Stored here so switching away from 1:1 restores the correct values.
+const _ORIGINAL_DEFAULTS = {
+  headlineFontSize:   120,
+  headlineYPos:       206.36,
+  headlineTracking:   -4.8,
+  headlineLineHeight: 1.1,
+  headlineAlign:      'center',
+  headlineFont:       '400',
+  headlinePadding:    0,
+  imageScale:         1.0,
+  imageYOffset:       0,
+  imageRadius:        12,
+  bgColor:            '#0c0c0f',
+};
+
+const ASPECT_RATIO_DEFAULTS = {
+  '1:1': {
+    // Headline — from Figma node 206:78927 (1410×1410 canvas, scale 2696/1410 = 1.912)
+    // Container: top=0, py=112px → text starts at 112px from top (top-aligned, keeping padding)
+    // Text: fontSize=77px, tracking=-3.08px (−4%), lineHeight=1.1, centered, width=1056.194px
+    headlineFontSize:   147,   // 77px × 1.912
+    headlineYPos:       214,   // 112px × 1.912  (top padding = where text starts)
+    headlineTracking:   -5.9,  // -3.08px × 1.912
+    headlineLineHeight: 1.1,
+    headlineAlign:      'center',
+    headlineFont:       '400',
+    headlinePadding:    338,   // (1410−1056.194)/2 × 1.912 — constrains text width to match Figma
+    // Image card — fills lower portion of canvas
+    imageScale:         1.46,  // 1270px / 869px (default rendered width)
+    imageYOffset:       604,   // (608 − 292.6) × 1.912
+    imageRadius:        18,    // 9.17px × 1.912
+    // Background
+    bgColor:            '#000000',
+  },
+  '4:5':    _ORIGINAL_DEFAULTS,
+  '16:9':   _ORIGINAL_DEFAULTS,
+  '9:16':   _ORIGINAL_DEFAULTS,
+  '1.91:1': _ORIGINAL_DEFAULTS,
+};
+
 // ── Built-in Palettes ────────────────────────────────────────
 const PALETTES = {
   custom: { label: 'Custom', stops: null },
@@ -49,6 +97,27 @@ const PALETTES = {
       { stop: 0.5, color: '#7ec8f7' },
       { stop: 1.0, color: '#1e88e5' },
     ],
+  },
+};
+
+// ── Background Gradient Presets — same stops as shape palettes ──
+// Each entry mirrors the colour stops from the matching PALETTES entry
+// so the background gradient always matches what's on the shapes.
+const BG_GRADIENTS = {
+  marketingWarm: {
+    label: 'Marketing Warm',
+    dir:   'vertical',
+    get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingWarm.stops)); },
+  },
+  marketingCool: {
+    label: 'Marketing Cool',
+    dir:   'vertical',
+    get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingCool.stops)); },
+  },
+  arctic: {
+    label: 'Arctic',
+    dir:   'vertical',
+    get stops() { return JSON.parse(JSON.stringify(PALETTES.arctic.stops)); },
   },
 };
 
@@ -130,12 +199,17 @@ const state = {
   baseline:   'bottom',
 
   // Circular Composition
-  circleCount:     12,
-  circleDiameter:  600,
-  circleAlignment: 'bottom-center',
-  circleMirrorXY:  false,
-  circleSpacingX:  0,
-  circleSpacingY:  0,
+  circleCount:      12,
+  circleDiameter:   600,
+  circleAlignment:  'bottom-center',
+  circleMirrorXY:   false,
+  circleSpacingX:   0,
+  circleSpacingY:   0,
+  circleFlipAnchor: false,
+  circleStagger:    0,
+  circleTextLink:   false,
+  circleTextPadding: 0,
+  noiseSeed:        42,
 
   // Shared
   gradientDirection: 'horizontal',
@@ -149,6 +223,16 @@ const state = {
   blur:         0,
   bgColor:      '#0c0c0f',
 
+  // Background gradient mode
+  bgGradientMode:   false,
+  bgGradientPreset: null,
+  bgGradientStops:  [],
+  bgGradientDir:    'vertical',
+  bgGradientFlip:   false,
+
+  // Bar gradient flip
+  barFlipGradient: false,
+
   // ── Inner Glow (no spread — uniform across entire shape) ──
   innerGlow:          false,
   innerGlowIntensity: 0.6,
@@ -161,15 +245,20 @@ const state = {
   // Layout Overlays
   showGraphics: true,
   showHeadline: true,
-  headlineLine1:      'Start with a prompt',
-  headlineLine2:      'End with a presentation',
-  headlineAlign:      'center',
-  headlineTracking:   -4.8,
-  headlineLineHeight: 1.1,
-  headlineFontSize:   120,
-  headlineFont:       '400',
-  headlineYPos:       206.36,
-  headlinePadding:    0,
+  headlineText:           'Start with a prompt\nEnd with a presentation',
+  headlineHighlightWords: '',
+  headlineHighlightColor: '#f66a24',
+  headlineTextColor:      '#ffffff',
+  headlineFillEnabled:    false,
+  headlineFillColor:      '#000000',
+  headlineFillOpacity:    0.5,
+  headlineAlign:          'center',
+  headlineTracking:       -4.8,
+  headlineLineHeight:     1.1,
+  headlineFontSize:       120,
+  headlineFont:           '400',
+  headlineYPos:           206.36,
+  headlinePadding:        0,
 
   showImage:       true,
   imageSrc:        '',
@@ -193,6 +282,7 @@ const state = {
 
   showFooter:      true,
   footerByline:    'Start for free today',
+  footerTextColor: '#ffffff',
   footerAlign:     'left',
   footerTracking:  -1.63,
   footerFont:      '500',
@@ -236,6 +326,26 @@ function cubicBezier(t, p1x, p1y, p2x, p2y) {
   return _by(tg, p1y, p2y);
 }
 
+// ── Seeded noise helpers ─────────────────────────────────────
+// Integer hash → float in [0, 1).  Fast and well-distributed.
+function seededHash(n) {
+  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+  return ((n ^ (n >>> 16)) >>> 0) / 0x100000000;
+}
+// 1-D value noise: smoothly interpolates between seeded lattice points.
+// Returns [0, 1].  Changing seed gives a completely different curve shape.
+function valueNoise1D(t, seed) {
+  const GRID = 24;
+  const ft   = t * GRID;
+  const i    = Math.floor(ft);
+  const f    = ft - i;
+  const s    = f * f * (3 - 2 * f);          // smoothstep
+  const v0   = seededHash(seed * 7919 + i);
+  const v1   = seededHash(seed * 7919 + i + 1);
+  return v0 + (v1 - v0) * s;
+}
+
 function getCurveValue(t, type) {
   if (type === 'flat') return 1;
   switch (type) {
@@ -245,6 +355,7 @@ function getCurveValue(t, type) {
     case 'parabolic':  return 1 - Math.pow(2 * t - 1, 2);
     case 'hyperbolic': return (t / (1 - 0.85 * t)) / (1 / (1 - 0.85));
     case 'bezier':     return cubicBezier(t, 0.42, 0, 0.58, 1);
+    case 'noise':      return valueNoise1D(t, (typeof state !== 'undefined' ? state.noiseSeed : 1));
     default:           return t;
   }
 }
@@ -327,3 +438,14 @@ function shuffleStyleImages() {
   }
   state.imageStyleOrder = idx;
 }
+
+// ── Default Presets ──────────────────────────────────────────
+// Seeded into localStorage on first load if no presets exist yet.
+// To reset to these defaults, clear localStorage key 'pai-tool-presets-v1'.
+const DEFAULT_PRESETS = [
+  {"id":1776944469865,"name":"1080x1080-Radial-Warm","snap":{"aspectRatio":"1:1","compositionType":"circular","rectCount":16,"spacing":0,"curveType":"parabolic","flipCurve":false,"symmetry":true,"mirrorY":false,"baseline":"bottom","circleCount":11,"circleDiameter":1157,"circleAlignment":"bottom-center","circleMirrorXY":false,"circleSpacingX":0,"circleSpacingY":0,"circleFlipAnchor":false,"circleStagger":375,"circleTextLink":false,"circleTextPadding":-40,"noiseSeed":217,"gradientDirection":"horizontal","extent":0.74,"palette":"marketingWarm","gradientStops":[{"stop":0,"color":"#ffb96e"},{"stop":0.2,"color":"#ffa958"},{"stop":0.4,"color":"#f66a24"},{"stop":0.6,"color":"#f65324"},{"stop":0.8,"color":"#df490b"},{"stop":1,"color":"#c72405"}],"opacity":0.72,"globalOpacity":false,"blur":0,"bgColor":"#FFB96E","bgGradientMode":false,"bgGradientPreset":"marketingWarm","bgGradientStops":[{"stop":0,"color":"#ffb96e"},{"stop":0.2,"color":"#ffa958"},{"stop":0.4,"color":"#f66a24"},{"stop":0.6,"color":"#f65324"},{"stop":0.8,"color":"#df490b"},{"stop":1,"color":"#c72405"}],"bgGradientDir":"vertical","bgGradientFlip":false,"barFlipGradient":false,"innerGlow":true,"innerGlowIntensity":0.55,"depthShadow":true,"dsSpread":0.07,"dsOpacity":0.18,"showGraphics":true,"showHeadline":true,"headlineText":"Stop reviewing decks for wrong colors and start reviewing  them for the right strategy.","headlineHighlightWords":"wrong colors right strategy  ","headlineHighlightColor":"#969696","headlineTextColor":"#ededed","headlineFillEnabled":true,"headlineFillColor":"#1f1200","headlineFillOpacity":1,"headlineAlign":"center","headlineTracking":-5.9,"headlineLineHeight":1.1,"headlineFontSize":147,"headlineFont":"400","headlineYPos":214,"headlinePadding":338,"showImage":true,"imageSrc":"","imageScale":1.4,"imageYOffset":660,"imageStrokeStyle":"marketing","imageRadius":9,"imageStrokeOp":1,"imageStrokeWeight":11,"imageMulti":false,"imageDistMode":"horizontal","imageMultiCount":3,"imageMultiSpacing":40,"imageStyle":"style5","imageStyleIndex":1,"imageStyleOrder":null,"showFooter":true,"footerByline":"Start for free today","footerTextColor":"#ffffff","footerAlign":"left","footerTracking":-1.63,"footerFont":"500"}},
+  {"id":1776943571410,"name":"1920x1080-MirrorCircle-Warm","snap":{"aspectRatio":"16:9","compositionType":"circular","rectCount":69,"spacing":0,"curveType":"parabolic","flipCurve":false,"symmetry":true,"mirrorY":false,"baseline":"bottom","circleCount":3,"circleDiameter":830,"circleAlignment":"center-left","circleMirrorXY":true,"circleSpacingX":558,"circleSpacingY":-287,"circleFlipAnchor":false,"circleStagger":75,"circleTextLink":false,"circleTextPadding":-40,"noiseSeed":242,"gradientDirection":"vertical","extent":0.81,"palette":"marketingWarm","gradientStops":[{"stop":0,"color":"#fff0e4"},{"stop":0.2,"color":"#f65324"},{"stop":0.4,"color":"#f66a24"},{"stop":0.6,"color":"#f56a24"},{"stop":0.8,"color":"#f65324"},{"stop":1,"color":"#fff0e4"}],"opacity":0.42,"globalOpacity":false,"blur":7,"bgColor":"#361E1C","bgGradientMode":true,"bgGradientPreset":"marketingWarm","bgGradientStops":[{"stop":0,"color":"#ffb96e"},{"stop":0.2,"color":"#ffa958"},{"stop":0.4,"color":"#f66a24"},{"stop":0.6,"color":"#f65324"},{"stop":0.8,"color":"#df490b"},{"stop":1,"color":"#c72405"}],"bgGradientDir":"vertical","bgGradientFlip":true,"barFlipGradient":true,"innerGlow":true,"innerGlowIntensity":0.74,"depthShadow":true,"dsSpread":0.07,"dsOpacity":0.18,"showGraphics":true,"showHeadline":true,"headlineText":"Enterprise presentations \\nwithout enterprise chaos. \\nOnly with Presentations.AI","headlineHighlightWords":"Presentations.AI","headlineHighlightColor":"#000000","headlineTextColor":"#ededed","headlineFillEnabled":false,"headlineFillColor":"#ffffff","headlineFillOpacity":0.55,"headlineAlign":"center","headlineTracking":-4.8,"headlineLineHeight":1.1,"headlineFontSize":111,"headlineFont":"400","headlineYPos":72,"headlinePadding":0,"showImage":true,"imageSrc":"","imageScale":1,"imageYOffset":0,"imageStrokeStyle":"marketing","imageRadius":12,"imageStrokeOp":1,"imageStrokeWeight":20,"imageMulti":false,"imageDistMode":"horizontal","imageMultiCount":3,"imageMultiSpacing":40,"imageStyle":"style1","imageStyleIndex":0,"imageStyleOrder":null,"showFooter":true,"footerByline":"Start for free today","footerTextColor":"#ffffff","footerAlign":"left","footerTracking":-1.63,"footerFont":"500"}},
+  {"id":1776943035700,"name":"1920x1080-MirrorCircle-Cool","snap":{"aspectRatio":"16:9","compositionType":"circular","rectCount":69,"spacing":0,"curveType":"parabolic","flipCurve":false,"symmetry":true,"mirrorY":false,"baseline":"bottom","circleCount":5,"circleDiameter":810,"circleAlignment":"center-left","circleMirrorXY":true,"circleSpacingX":558,"circleSpacingY":-287,"circleFlipAnchor":false,"circleStagger":90,"circleTextLink":false,"circleTextPadding":-40,"noiseSeed":242,"gradientDirection":"vertical","extent":0.81,"palette":"custom","gradientStops":[{"stop":0,"color":"#8bcdf8"},{"stop":0.5,"color":"#c2dcff"},{"stop":1,"color":"#8bcdf8"}],"opacity":1,"globalOpacity":true,"blur":7,"bgColor":"#CAE2FF","bgGradientMode":false,"bgGradientPreset":"arctic","bgGradientStops":[{"stop":0,"color":"#c8e6ff"},{"stop":0.5,"color":"#7ec8f7"},{"stop":1,"color":"#1e88e5"}],"bgGradientDir":"vertical","bgGradientFlip":false,"barFlipGradient":true,"innerGlow":false,"innerGlowIntensity":0.74,"depthShadow":true,"dsSpread":0.07,"dsOpacity":0.5,"showGraphics":true,"showHeadline":true,"headlineText":"Enterprise presentations \\nwithout enterprise chaos. \\nOnly with Presentations.AI","headlineHighlightWords":"Presentations.AI","headlineHighlightColor":"#000000","headlineTextColor":"#383838","headlineFillEnabled":false,"headlineFillColor":"#000000","headlineFillOpacity":0.5,"headlineAlign":"center","headlineTracking":-4.8,"headlineLineHeight":1.1,"headlineFontSize":111,"headlineFont":"400","headlineYPos":72,"headlinePadding":0,"showImage":true,"imageSrc":"","imageScale":1,"imageYOffset":0,"imageStrokeStyle":"frosty","imageRadius":12,"imageStrokeOp":1,"imageStrokeWeight":20,"imageMulti":false,"imageDistMode":"horizontal","imageMultiCount":3,"imageMultiSpacing":40,"imageStyle":"style1","imageStyleIndex":0,"imageStyleOrder":null,"showFooter":true,"footerByline":"Start for free today","footerTextColor":"#ffffff","footerAlign":"left","footerTracking":-1.63,"footerFont":"500"}},
+  {"id":1776941548100,"name":"1080x1350-WarmNoise","snap":{"aspectRatio":"4:5","compositionType":"rectangle","rectCount":116,"spacing":4,"curveType":"noise","flipCurve":false,"symmetry":true,"mirrorY":true,"baseline":"bottom","circleCount":12,"circleDiameter":600,"circleAlignment":"bottom-center","circleMirrorXY":false,"circleSpacingX":0,"circleSpacingY":0,"circleFlipAnchor":false,"circleStagger":0,"circleTextLink":false,"circleTextPadding":0,"noiseSeed":42,"gradientDirection":"vertical","extent":0.85,"palette":"marketingWarm","gradientStops":[{"stop":0,"color":"#ffb96e"},{"stop":0.2,"color":"#ffa958"},{"stop":0.4,"color":"#f66a24"},{"stop":0.6,"color":"#f65324"},{"stop":0.8,"color":"#df490b"},{"stop":1,"color":"#c72405"}],"opacity":0.88,"globalOpacity":false,"blur":0,"bgColor":"#0c0c0f","bgGradientMode":false,"bgGradientPreset":"marketingCool","bgGradientStops":[{"stop":0,"color":"#cae2ff"},{"stop":0.2,"color":"#a6d0ff"},{"stop":0.4,"color":"#66a8ff"},{"stop":0.6,"color":"#4374b9"},{"stop":0.8,"color":"#23303b"},{"stop":1,"color":"#002156"}],"bgGradientDir":"vertical","bgGradientFlip":false,"barFlipGradient":false,"innerGlow":false,"innerGlowIntensity":0.6,"depthShadow":true,"dsSpread":0.28,"dsOpacity":0.5,"showGraphics":true,"showHeadline":true,"headlineText":"Stop reviewing decks for wrong colors \\n& start reviewing them for the \\nright strategy.","headlineHighlightWords":"wrong colors right strategy","headlineHighlightColor":"#f5f5f5","headlineTextColor":"#b3b3b3","headlineFillEnabled":true,"headlineFillColor":"#000000","headlineFillOpacity":1,"headlineAlign":"center","headlineTracking":-4.8,"headlineLineHeight":1.1,"headlineFontSize":127,"headlineFont":"400","headlineYPos":206.36,"headlinePadding":0,"showImage":true,"imageSrc":"","imageScale":1.55,"imageYOffset":590,"imageStrokeStyle":"marketing","imageRadius":12,"imageStrokeOp":1,"imageStrokeWeight":10,"imageMulti":false,"imageDistMode":"horizontal","imageMultiCount":3,"imageMultiSpacing":40,"imageStyle":"style3","imageStyleIndex":0,"imageStyleOrder":null,"showFooter":true,"footerByline":"Start for free today","footerTextColor":"#ffffff","footerAlign":"left","footerTracking":-1.63,"footerFont":"500"}},
+  {"id":1776941472238,"name":"1080x1350-Noise01","snap":{"aspectRatio":"4:5","compositionType":"rectangle","rectCount":116,"spacing":4,"curveType":"noise","flipCurve":false,"symmetry":true,"mirrorY":true,"baseline":"bottom","circleCount":12,"circleDiameter":600,"circleAlignment":"bottom-center","circleMirrorXY":false,"circleSpacingX":0,"circleSpacingY":0,"circleFlipAnchor":false,"circleStagger":0,"circleTextLink":false,"circleTextPadding":0,"noiseSeed":42,"gradientDirection":"vertical","extent":0.85,"palette":"marketingCool","gradientStops":[{"stop":0,"color":"#cae2ff"},{"stop":0.2,"color":"#a6d0ff"},{"stop":0.4,"color":"#66a8ff"},{"stop":0.6,"color":"#4374b9"},{"stop":0.8,"color":"#23303b"},{"stop":1,"color":"#002156"}],"opacity":0.88,"globalOpacity":false,"blur":0,"bgColor":"#0c0c0f","bgGradientMode":false,"bgGradientPreset":"marketingCool","bgGradientStops":[{"stop":0,"color":"#cae2ff"},{"stop":0.2,"color":"#a6d0ff"},{"stop":0.4,"color":"#66a8ff"},{"stop":0.6,"color":"#4374b9"},{"stop":0.8,"color":"#23303b"},{"stop":1,"color":"#002156"}],"bgGradientDir":"vertical","bgGradientFlip":false,"barFlipGradient":false,"innerGlow":false,"innerGlowIntensity":0.6,"depthShadow":true,"dsSpread":0.28,"dsOpacity":0.5,"showGraphics":true,"showHeadline":true,"headlineText":"Stop reviewing decks for wrong colors \\n& start reviewing them for the \\nright strategy.","headlineHighlightWords":"wrong colors right strategy","headlineHighlightColor":"#f5f5f5","headlineTextColor":"#b3b3b3","headlineFillEnabled":true,"headlineFillColor":"#000000","headlineFillOpacity":1,"headlineAlign":"center","headlineTracking":-4.8,"headlineLineHeight":1.1,"headlineFontSize":127,"headlineFont":"400","headlineYPos":206.36,"headlinePadding":0,"showImage":true,"imageSrc":"","imageScale":1.55,"imageYOffset":590,"imageStrokeStyle":"frosty","imageRadius":12,"imageStrokeOp":1,"imageStrokeWeight":10,"imageMulti":false,"imageDistMode":"horizontal","imageMultiCount":3,"imageMultiSpacing":40,"imageStyle":"style3","imageStyleIndex":0,"imageStyleOrder":null,"showFooter":true,"footerByline":"Start for free today","footerTextColor":"#ffffff","footerAlign":"left","footerTracking":-1.63,"footerFont":"500"}}
+];

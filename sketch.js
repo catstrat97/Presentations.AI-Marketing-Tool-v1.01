@@ -28,8 +28,28 @@ function computeCanvasDimensions() {
 }
 
 function renderBackground(p) {
-  const [r,g,b] = hexToRgb(state.bgColor);
-  p.background(r, g, b);
+  if (state.bgGradientMode && state.bgGradientStops && state.bgGradientStops.length >= 2) {
+    const dc   = p.drawingContext;
+    const flip = state.bgGradientFlip;
+    let x0, y0, x1, y1;
+    if (state.bgGradientDir === 'horizontal') {
+      x0 = flip ? cw : 0; y0 = 0;
+      x1 = flip ? 0 : cw; y1 = 0;
+    } else {
+      x0 = 0; y0 = flip ? ch : 0;
+      x1 = 0; y1 = flip ? 0 : ch;
+    }
+    const grad = dc.createLinearGradient(x0, y0, x1, y1);
+    [...state.bgGradientStops].sort((a, b) => a.stop - b.stop).forEach(s => {
+      const [r, g, b] = hexToRgb(s.color);
+      grad.addColorStop(s.stop, `rgb(${r},${g},${b})`);
+    });
+    dc.fillStyle = grad;
+    dc.fillRect(0, 0, cw, ch);
+  } else {
+    const [r,g,b] = hexToRgb(state.bgColor);
+    p.background(r, g, b);
+  }
 }
 
 // ── computeRectFill ──────────────────────────────────────────
@@ -39,6 +59,9 @@ function computeRectFill(dc, fillT, rx, ry, rw, rh, alpha, flip) {
   const gradDir = state.gradientDirection;
   const sorted  = [...state.gradientStops].sort((a,b) => a.stop - b.stop);
 
+  // Apply global bar flip (XOR with per-rect mirror flip)
+  const ef = state.barFlipGradient ? !flip : flip;
+
   const useRectGrad =
     ( isHDist && gradDir === 'vertical') ||
     (!isHDist && gradDir === 'horizontal');
@@ -46,11 +69,11 @@ function computeRectFill(dc, fillT, rx, ry, rw, rh, alpha, flip) {
   if (useRectGrad) {
     let x0, y0, x1, y1;
     if (gradDir === 'vertical') {
-      x0=rx; y0= flip ? ry+rh : ry;
-      x1=rx; y1= flip ? ry     : ry+rh;
+      x0=rx; y0= ef ? ry+rh : ry;
+      x1=rx; y1= ef ? ry     : ry+rh;
     } else {
-      x0= flip ? rx+rw : rx; y0=ry;
-      x1= flip ? rx    : rx+rw; y1=ry;
+      x0= ef ? rx+rw : rx; y0=ry;
+      x1= ef ? rx    : rx+rw; y1=ry;
     }
     const grad = dc.createLinearGradient(x0, y0, x1, y1);
     sorted.forEach(s => {
@@ -59,7 +82,7 @@ function computeRectFill(dc, fillT, rx, ry, rw, rh, alpha, flip) {
     });
     return grad;
   } else {
-    const t       = flip ? 1 - fillT : fillT;
+    const t       = ef ? 1 - fillT : fillT;
     const [r,g,b] = sampleGradient(t, state.gradientStops);
     return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
   }
@@ -271,7 +294,8 @@ function renderCircle(p, cx, cy, radius, fillStyle, fillRgb) {
 
 // ── Helper: sample base RGB for inner glow ───────────────────
 function extractFillRgb(fillT, flip) {
-  const t = flip ? 1 - fillT : fillT;
+  const ef = state.barFlipGradient ? !flip : flip;
+  const t = ef ? 1 - fillT : fillT;
   return sampleGradient(t, state.gradientStops).map(Math.round);
 }
 
@@ -335,40 +359,100 @@ function renderComposition(p) {
   }
 }
 
+// ── getHeadlineBBox ──────────────────────────────────────────
+// Returns headline bounding box in canvas coordinates {x,y,w,h}.
+function getHeadlineBBox() {
+  const artboard = document.getElementById('artboard');
+  const headline = document.getElementById('overlay-headline');
+  if (!artboard || !headline || !state.showHeadline) return null;
+  const ab = artboard.getBoundingClientRect();
+  const hb = headline.getBoundingClientRect();
+  if (ab.width === 0) return null;
+  const scale = cw / ab.width;
+  return {
+    x: (hb.left - ab.left) * scale,
+    y: (hb.top  - ab.top)  * scale,
+    w: hb.width  * scale,
+    h: hb.height * scale,
+  };
+}
+
 // ── renderCircularComposition ────────────────────────────────
 function renderCircularComposition(p) {
-  const count      = Math.max(2, Math.floor(state.circleCount));
-  const maxD       = state.circleDiameter;
-  const minD       = Math.max(10, maxD * 0.05);
-  const maxStagger = ch * state.extent;
-  const dc         = p.drawingContext;
+  const count = Math.max(2, Math.floor(state.circleCount));
+  const maxD  = state.circleDiameter;
+  // Smallest circle = 25 % of max (floored at 60 px) so it stays visible.
+  const minD  = Math.max(60, maxD * 0.25);
+  const maxR  = maxD / 2;
+  const minR  = minD / 2;
+  const dc    = p.drawingContext;
+  const align = state.circleAlignment;
+
+  // ── Reference radius ──────────────────────────────────────────
+  // refR controls which circle sits exactly at the anchor boundary.
+  //   false (default) → refR = maxR : largest circle's edge at boundary,
+  //                                   smaller circles nest inside.
+  //   true  (flip)    → refR = minR : smallest circle's edge at boundary,
+  //                                   larger circles bleed beyond it.
+  const refR = state.circleFlipAnchor ? minR : maxR;
+
+  // ── Anchor centre ─────────────────────────────────────────────
+  let anchorX = cw / 2, anchorY = ch / 2;
+
+  if (state.circleTextLink) {
+    const bbox = getHeadlineBBox();
+    if (bbox) {
+      // Auto-pad = half the measured text-box height (scales with text size).
+      // circleTextPadding adds extra pixels on top for fine-tuning.
+      const autoPad = Math.round(bbox.h * 0.5) + state.circleTextPadding;
+      anchorX = bbox.x + bbox.w + autoPad;
+    }
+  } else {
+    if      (align.includes('left'))  anchorX = refR;
+    else if (align.includes('right')) anchorX = cw - refR;
+  }
+  if      (align.includes('top'))    anchorY = refR;
+  else if (align.includes('bottom')) anchorY = ch - refR;
+
+  // ── Stagger ───────────────────────────────────────────────────
+  // Each circle is offset from the anchor toward the canvas centre by
+  // (fillT × effectiveStagger).  fillT = 0 → largest at anchor;
+  // fillT = 1 → smallest furthest inward.
+  //
+  // Direction is always from the anchor toward the canvas midpoint,
+  // so the composition fans inward regardless of which anchor is chosen.
+  const staggerDirX = Math.sign(cw / 2 - anchorX);
+  const staggerDirY = Math.sign(ch / 2 - anchorY);
+
+  // Mirror-mode guard: cap stagger so no circle crosses the canvas midpoint,
+  // guaranteeing the two reflected groups never overlap.
+  // (circles may still bleed outside the canvas — size is never deformed.)
+  let effectiveStagger = state.circleStagger;
+  if (state.circleMirrorXY && effectiveStagger > 0) {
+    if (staggerDirX !== 0)
+      effectiveStagger = Math.min(effectiveStagger, Math.max(0, Math.abs(anchorX - cw / 2)));
+    if (staggerDirY !== 0)
+      effectiveStagger = Math.min(effectiveStagger, Math.max(0, Math.abs(anchorY - ch / 2)));
+  }
 
   for (let i = 0; i < count; i++) {
-    const fillT = count > 1 ? i / (count - 1) : 0;
-
-    let curveVal = getCurveValue(fillT, state.curveType);
-    if (state.flipCurve) curveVal = 1 - curveVal;
-
-    const currentD = maxD - (maxD - minD) * fillT;
+    const fillT    = count > 1 ? i / (count - 1) : 0;
+    const currentD = maxD - (maxD - minD) * fillT;   // largest → smallest
     const R        = currentD / 2;
-    const offset   = maxStagger * curveVal;
 
-    let cx = cw / 2, cy = ch / 2;
-    const align = state.circleAlignment;
-    if (align.includes('left'))   cx = R + offset;
-    else if (align.includes('right'))  cx = cw - R - offset;
-    if (align.includes('top'))    cy = R + offset;
-    else if (align.includes('bottom')) cy = ch - R - offset;
+    // Per-circle centre: stagger shifts each ring inward from the anchor.
+    const cx = anchorX + staggerDirX * effectiveStagger * fillT;
+    const cy = anchorY + staggerDirY * effectiveStagger * fillT;
 
     function moveAndDraw(px, py, flipX = false) {
-      const vx = px - cw/2, vy = py - ch/2;
+      const vx = px - cw / 2, vy = py - ch / 2;
       const dx = Math.abs(vx) < 0.5 ? 0 : Math.sign(vx);
       const dy = Math.abs(vy) < 0.5 ? 0 : Math.sign(vy);
       const finalX = px + dx * state.circleSpacingX;
       const finalY = py + dy * state.circleSpacingY;
 
       const alpha   = state.opacity;
-      const fill    = computeRectFill(dc, fillT, finalX-R, finalY-R, currentD, currentD, alpha, flipX);
+      const fill    = computeRectFill(dc, fillT, finalX - R, finalY - R, currentD, currentD, alpha, flipX);
       const fillRgb = state.innerGlow ? extractFillRgb(fillT, flipX) : null;
       renderCircle(p, finalX, finalY, R, fill, fillRgb);
     }
@@ -376,11 +460,15 @@ function renderCircularComposition(p) {
     moveAndDraw(cx, cy, false);
 
     if (state.circleMirrorXY) {
-      const mx = cw - cx, my = ch - cy;
-      const notCenterH = Math.abs(cx - cw/2) > 0.5;
-      const notCenterV = Math.abs(cy - ch/2) > 0.5;
-      if (notCenterH) moveAndDraw(mx, cy, true);
-      if (notCenterV) moveAndDraw(cx, my, false);
+      // Reflect the staggered (cx, cy) around the canvas midpoint.
+      // Because stagger is capped above, the reflected group cascades
+      // symmetrically from the opposite edge with no overlap.
+      const mx = cw - cx;
+      const my = ch - cy;
+      const notCenterH = Math.abs(cx - cw / 2) > 0.5;
+      const notCenterV = Math.abs(cy - ch / 2) > 0.5;
+      if (notCenterH)               moveAndDraw(mx, cy, true);
+      if (notCenterV)               moveAndDraw(cx, my, false);
       if (notCenterH && notCenterV) moveAndDraw(mx, my, true);
     }
   }
@@ -437,50 +525,335 @@ const sketch = function(p) {
     p.redraw();
   };
 
-  // ── Export: rasterize artboard (p5 canvas + HTML overlays) ──
-  window._exportCanvas = () => {
+  // ── Export: pure canvas compositor ──────────────────────────
+  // Replaces html2canvas to guarantee backdrop-filter, gradient BG,
+  // and images all render identically to what is seen on screen.
+
+  // Load an image element by src, reusing it if already decoded.
+  function _loadImg(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload  = () => resolve(img);
+      img.onerror = () => reject(new Error('img load failed: ' + src));
+      img.src = src;
+    });
+  }
+
+  // Rounded-rectangle path helper.
+  function _rrPath(ctx, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+  }
+
+  // Returns element's bounding rect mapped to export-canvas coordinates.
+  function _xRect(el, ab, ES) {
+    const r = el.getBoundingClientRect();
+    return {
+      x: (r.left - ab.left) * ES,
+      y: (r.top  - ab.top)  * ES,
+      w: r.width  * ES,
+      h: r.height * ES,
+    };
+  }
+
+  async function _drawImages(ctx, ab, ES) {
+    const overlay = document.getElementById('overlay-image');
+    if (!overlay || overlay.style.display === 'none') return;
+
+    const DESIGN_W = 2696;
+    const scale    = (ab.width / DESIGN_W) * ES;
+    const bw       = state.imageStrokeWeight * scale;
+    const op       = state.imageStrokeOp;
+    const rad      = Math.min(40, Math.max(0, state.imageRadius)) * scale;
+    const strokeColor = state.imageStrokeStyle === 'frosty'
+      ? `rgba(220,235,255,${op})`
+      : `rgba(104,58,39,${op})`;
+
+    const instances = overlay.querySelectorAll('.img-instance');
+    // Sort by CSS z-index ascending so the HIGHEST z-index (front) is drawn last,
+    // matching the CSS stagger where element 0 has z-index=count (frontmost).
+    const targets = (instances.length > 0 ? Array.from(instances) : [overlay])
+      .sort((a, b) => (parseInt(a.style.zIndex) || 0) - (parseInt(b.style.zIndex) || 0));
+
+    for (const el of targets) {
+      const rect = _xRect(el, ab, ES);
+      if (rect.w < 1 || rect.h < 1) continue;
+
+      // Background
+      _rrPath(ctx, rect.x, rect.y, rect.w, rect.h, rad);
+      ctx.fillStyle = '#171717';
+      ctx.fill();
+
+      // Image content
+      const imgEl = el.querySelector('img');
+      const imgSrc = imgEl && imgEl.src && !imgEl.src.endsWith('#') ? imgEl.src : null;
+      if (imgSrc) {
+        try {
+          // Reuse the already-decoded image when possible.
+          const loaded = (imgEl.complete && imgEl.naturalWidth > 0)
+            ? imgEl
+            : await _loadImg(imgSrc);
+          ctx.save();
+          const ir  = Math.max(0, rad - bw);
+          const dw  = rect.w - bw * 2;
+          const dh  = rect.h - bw * 2;
+          _rrPath(ctx, rect.x + bw, rect.y + bw, dw, dh, ir);
+          ctx.clip();
+          // Fill / cover mode — scale to fill, crop to fit (matches object-fit:cover)
+          const iw  = loaded.naturalWidth  || dw;
+          const ih  = loaded.naturalHeight || dh;
+          const s   = Math.max(dw / iw, dh / ih);
+          const sw  = iw * s;
+          const sh  = ih * s;
+          const ox  = rect.x + bw + (dw - sw) / 2;
+          const oy  = rect.y + bw + (dh - sh) / 2;
+          ctx.drawImage(loaded, ox, oy, sw, sh);
+          ctx.restore();
+        } catch (_) { /* image missing — leave dark bg */ }
+      }
+
+      // Border
+      if (op > 0 && bw > 0) {
+        ctx.save();
+        _rrPath(ctx, rect.x + bw / 2, rect.y + bw / 2, rect.w - bw, rect.h - bw, Math.max(0, rad - bw / 2));
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth   = bw;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  async function _drawFooter(ctx, ab, ES) {
+    const footEl = document.getElementById('overlay-footer');
+    if (!footEl || footEl.style.display === 'none') return;
+
+    const rect     = _xRect(footEl, ab, ES);
+    const DESIGN_W = 2696;
+    const scale    = (ab.width / DESIGN_W) * ES;
+
+    // ── Replicate backdrop-filter: blur(100px) + rgba(0,0,0,0.6) ──
+    // 1. Snapshot everything already drawn on the export canvas.
+    // 2. Clip to footer rect, redraw snapshot through a blur filter —
+    //    this is the canvas equivalent of backdrop-filter: blur().
+    // 3. Overlay rgba(0,0,0,0.6) to match the CSS background colour.
+    // CSS backdrop-filter:blur(100px) → 100 CSS-px × ES = export canvas pixels.
+    // (ab.width/2696 was wrong — the CSS blur value is in viewport px, not design units.)
+    const blurRadius = 100 * ES;
+    const snap = document.createElement('canvas');
+    snap.width  = ctx.canvas.width;
+    snap.height = ctx.canvas.height;
+    snap.getContext('2d').drawImage(ctx.canvas, 0, 0);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.clip();
+    ctx.filter = `blur(${blurRadius}px)`;
+    ctx.drawImage(snap, 0, 0);
+    ctx.restore();
+
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+    // Inset top highlight (matches CSS inset box-shadow)
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(rect.x, rect.y, rect.w, Math.max(1, 4 * scale));
+
+    const padL      = 45 * scale;
+    const padR      = 48.6 * scale;
+    const fontSize  = 54.517 * scale;
+    const tracking  = -1.6355 * scale;
+    const textColor = state.footerTextColor || '#ffffff';
+
+    await document.fonts.ready;
+
+    // ── Footer byline ──────────────────────────────────────────
+    ctx.save();
+    ctx.font         = `${state.footerFont} ${fontSize}px "Innovators Grotesk", sans-serif`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
+    ctx.fillStyle    = textColor;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign    = state.footerAlign === 'right'  ? 'right'  :
+                       state.footerAlign === 'center' ? 'center' : 'left';
+
+    const textX = state.footerAlign === 'right'  ? rect.x + rect.w - padR :
+                  state.footerAlign === 'center' ? rect.x + rect.w / 2   :
+                  rect.x + padL;
+    ctx.fillText(state.footerByline, textX, rect.y + rect.h / 2);
+    ctx.restore();
+
+    // ── Logo ───────────────────────────────────────────────────
+    try {
+      const logo  = await _loadImg('img/pai-wordmark.svg');
+      const logoH = 71.51 * scale;
+      const logoW = logo.naturalWidth * (logoH / logo.naturalHeight);
+      ctx.drawImage(logo, rect.x + rect.w - padR - logoW, rect.y + (rect.h - logoH) / 2, logoW, logoH);
+    } catch (_) { /* logo missing — skip */ }
+  }
+
+  function _drawHeadline(ctx, ab, ES) {
+    const headEl = document.getElementById('overlay-headline');
+    if (!headEl || headEl.style.display === 'none') return;
+
+    const DESIGN_W  = 2696;
+    const scale     = (ab.width / DESIGN_W) * ES;
+    const EW        = ab.width * ES;
+    const fontSize  = state.headlineFontSize * scale;
+    const tracking  = state.headlineTracking  * scale;
+    const padL      = state.headlinePadding   * scale;
+    const padR      = state.headlinePadding   * scale;
+    const textColor = state.headlineTextColor || '#ffffff';
+    const lineH     = fontSize * state.headlineLineHeight;
+
+    // ── Fill background (uses overlay bounding rect — includes padding) ──
+    const headRect   = _xRect(headEl, ab, ES);
+    const textEl     = document.getElementById('headline-text');
+    // textEl's y already accounts for fill padding-top or headlineYPos offset
+    const textStartY = textEl ? _xRect(textEl, ab, ES).y : headRect.y;
+
+    if (state.headlineFillEnabled) {
+      const [fr, fg, fb] = hexToRgb(state.headlineFillColor || '#000000');
+      ctx.fillStyle = `rgba(${fr},${fg},${fb},${state.headlineFillOpacity})`;
+      ctx.fillRect(headRect.x, headRect.y, headRect.w, headRect.h);
+    }
+
+    ctx.save();
+    ctx.font         = `${state.headlineFont} ${fontSize}px "Innovators Grotesk", sans-serif`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign    = 'left'; // always left; we compute x manually per line
+
+    // Available text width mirrors the DOM element's rendered width exactly,
+    // so canvas word-wrap matches the CSS pre-wrap line breaks.
+    const availW = textEl
+      ? textEl.getBoundingClientRect().width * ES
+      : EW - padL - padR;
+
+    // ── Word-wrap a single paragraph to fit availW ────────────
+    function _wrapPara(para) {
+      if (!para) return [''];
+      const words = para.split(' ');
+      const out   = [];
+      let cur     = '';
+      for (const w of words) {
+        const test = cur ? cur + ' ' + w : w;
+        if (cur && ctx.measureText(test).width > availW) {
+          out.push(cur);
+          cur = w;
+        } else {
+          cur = test;
+        }
+      }
+      if (cur) out.push(cur);
+      return out;
+    }
+
+    // Respect explicit \n breaks, then word-wrap each paragraph
+    const wrappedLines = (state.headlineText || '')
+      .split('\n')
+      .flatMap(_wrapPara);
+
+    // ── Highlight word set ────────────────────────────────────
+    const hlWordSet = new Set(
+      (state.headlineHighlightWords || '')
+        .split(/[\s,]+/)
+        .map(w => w.trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const hlColor = state.headlineHighlightColor || '#f66a24';
+
+    const align = state.headlineAlign || 'center';
+
+    // X origin for a line given its full measured width
+    function _lineX(lineW) {
+      if (align === 'center') return (EW - lineW) / 2;
+      if (align === 'right')  return EW - padR - lineW;
+      return padL;
+    }
+
+    // ── Draw each wrapped line ────────────────────────────────
+    let y = textStartY;
+    for (const line of wrappedLines) {
+      if (!line) { y += lineH; continue; }
+
+      const lineW    = ctx.measureText(line).width;
+      const lineWordsArr = line.split(' ');
+      const hasHL    = hlWordSet.size > 0 &&
+                       lineWordsArr.some(w =>
+                         hlWordSet.has(w.toLowerCase().replace(/[^a-z0-9'-]/g, '')));
+
+      if (!hasHL) {
+        // Fast path: draw the whole line at once
+        ctx.fillStyle = textColor;
+        ctx.fillText(line, _lineX(lineW), y);
+      } else {
+        // Slow path: draw word-by-word so highlights get a different colour
+        let x = _lineX(lineW);
+        lineWordsArr.forEach((word, i) => {
+          if (i > 0) {
+            ctx.fillStyle = textColor;
+            ctx.fillText(' ', x, y);
+            x += ctx.measureText(' ').width;
+          }
+          const key = word.toLowerCase().replace(/[^a-z0-9'-]/g, '');
+          ctx.fillStyle = hlWordSet.has(key) ? hlColor : textColor;
+          ctx.fillText(word, x, y);
+          x += ctx.measureText(word).width;
+        });
+      }
+
+      y += lineH;
+    }
+
+    ctx.restore();
+  }
+
+  window._exportCanvas = async () => {
+    const ES  = 2;                      // export pixel multiplier (2× = retina)
+    const EW  = cw * ES;
+    const EH  = ch * ES;
     const artboard = document.getElementById('artboard');
     if (!artboard) return;
+    const ab = artboard.getBoundingClientRect();
 
-    html2canvas(artboard, {
-      backgroundColor: state.bgColor,
-      useCORS: true,
-      allowTaint: true,
-      scale: 2,
-      logging: false,
-      imageTimeout: 0,
-      removeContainer: true,
-      ignoreElements: (el) => el.id === 'panel' || el.classList.contains('ignore-export'),
-    }).then(canvas => {
-      canvas.toBlob(blob => {
-        if (!blob) throw new Error('Canvas toBlob failed');
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = `generative-${Date.now()}.png`;
-        link.href = url;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 'image/png');
-    }).catch(err => {
-      console.error('Export failed:', err);
-      // Fallback: export just the p5 canvas if html2canvas chokes (e.g. tainted)
-      const p5canvas = document.querySelector('#p5-target canvas');
-      if (p5canvas) {
-        p5canvas.toBlob(blob => {
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          const link2 = document.createElement('a');
-          link2.download = `generative-shapes-${Date.now()}.png`;
-          link2.href = url;
-          document.body.appendChild(link2);
-          link2.click();
-          document.body.removeChild(link2);
-          URL.revokeObjectURL(url);
-        }, 'image/png');
-      }
-    });
+    // 1. Create export canvas
+    const exp = document.createElement('canvas');
+    exp.width  = EW;
+    exp.height = EH;
+    const ctx  = exp.getContext('2d');
+
+    // 2. Draw p5 canvas (background + graphics)
+    const p5c = document.querySelector('#p5-target canvas');
+    if (p5c) ctx.drawImage(p5c, 0, 0, EW, EH);
+
+    // 3. Composite overlays: image → headline → footer (top-most last)
+    try {
+      if (state.showImage)    await _drawImages(ctx, ab, ES);
+      if (state.showHeadline)       _drawHeadline(ctx, ab, ES);
+      if (state.showFooter)  await _drawFooter(ctx, ab, ES);
+    } catch (err) {
+      console.warn('Export overlay error:', err);
+    }
+
+    // 4. Emit PNG
+    exp.toBlob(blob => {
+      if (!blob) { console.error('Export toBlob failed'); return; }
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = `generative-${Date.now()}.png`;
+      link.href = url;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
   };
 };
 

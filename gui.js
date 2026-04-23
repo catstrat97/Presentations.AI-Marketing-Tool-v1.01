@@ -13,25 +13,19 @@ function redraw() {
 // OVERLAY UPDATER
 // ══════════════════════════════════════════════════════════════
 
-// Compute and apply adaptive text color + drop shadow based on bg luma
+// Apply explicit text colours (user-controlled via colour pickers). No auto-glow.
 function applyTextAdaptation() {
-  const textColor  = getTextColorForBg(state.bgColor);
-  const isLight    = textColor === '#000000';
-  // Subtle shadow: opposite of text color
-  const shadowColor = isLight ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)';
-  const shadow      = `0 1px 6px ${shadowColor}, 0 2px 12px ${shadowColor}`;
-
   // Headline
   document.querySelectorAll('.headline-text').forEach(el => {
-    el.style.color      = textColor;
-    el.style.textShadow = shadow;
+    el.style.color      = state.headlineTextColor || '#ffffff';
+    el.style.textShadow = 'none';
   });
 
   // Footer byline
   const bylineEl = document.getElementById('footer-byline');
   if (bylineEl) {
-    bylineEl.style.color      = textColor;
-    bylineEl.style.textShadow = shadow;
+    bylineEl.style.color      = state.footerTextColor || '#ffffff';
+    bylineEl.style.textShadow = 'none';
   }
 }
 
@@ -180,29 +174,75 @@ function buildInnerPlaceholder(src) {
   return wrap;
 }
 
+// Build innerHTML for headline: wrap highlight words in .headline-hl spans.
+// Only called when the headline element is NOT focused (to avoid caret disruption).
+function _renderHeadlineHTML() {
+  const hlWords = new Set(
+    (state.headlineHighlightWords || '')
+      .split(/[\s,]+/)
+      .map(w => w.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  if (hlWords.size === 0) return null; // signal: use textContent instead
+
+  const hlColor = state.headlineHighlightColor || '#f66a24';
+  // Process each line, wrapping whole-word matches in spans
+  const lines = (state.headlineText || '').split('\n');
+  const htmlLines = lines.map(line => {
+    // Split on word boundaries but preserve spaces
+    return line.replace(/(\S+)/g, (word) => {
+      const clean = word.replace(/[^a-zA-Z0-9''-]/g, '').toLowerCase();
+      if (hlWords.has(clean)) {
+        return `<span class="headline-hl" style="color:${hlColor}">${word}</span>`;
+      }
+      return word;
+    });
+  });
+  return htmlLines.join('<br>');
+}
+
 function updateOverlays() {
-  const h1         = document.getElementById('headline-l1');
-  const h2         = document.getElementById('headline-l2');
+  const headEl      = document.getElementById('headline-text');
   const overlayHead = document.getElementById('overlay-headline');
   const overlayFoot = document.getElementById('overlay-footer');
   const byline      = document.getElementById('footer-byline');
 
-  if (h1 && h2 && overlayHead) {
+  if (headEl && overlayHead) {
     // Don't stomp the caret while the user is editing in-place
-    if (document.activeElement !== h1) h1.textContent = state.headlineLine1;
-    if (document.activeElement !== h2) h2.textContent = state.headlineLine2;
+    if (document.activeElement !== headEl) {
+      const html = _renderHeadlineHTML();
+      if (html !== null) {
+        headEl.innerHTML = html;
+      } else {
+        headEl.textContent = state.headlineText || '';
+      }
+    }
+
     overlayHead.style.textAlign    = state.headlineAlign;
     overlayHead.style.display      = state.showHeadline ? 'flex' : 'none';
-    overlayHead.style.top          = `calc(${state.headlineYPos}px * var(--scale))`;
     overlayHead.style.paddingLeft  = `calc(${state.headlinePadding}px * var(--scale))`;
     overlayHead.style.paddingRight = `calc(${state.headlinePadding}px * var(--scale))`;
 
-    [h1, h2].forEach(el => {
-      el.style.letterSpacing = `calc(${state.headlineTracking}px * var(--scale))`;
-      el.style.lineHeight    = state.headlineLineHeight;
-      el.style.fontSize      = `calc(${state.headlineFontSize}px * var(--scale))`;
-      el.style.fontWeight    = state.headlineFont;
-    });
+    // Fill mode: box anchored to canvas top with internal top/bottom padding.
+    // 112 Figma-px → 214 design-units; 105 Figma-px → 201 design-units.
+    if (state.headlineFillEnabled) {
+      const [fr, fg, fb] = hexToRgb(state.headlineFillColor || '#000000');
+      overlayHead.style.top           = '0';
+      overlayHead.style.paddingTop    = `calc(214px * var(--scale))`;
+      overlayHead.style.paddingBottom = `calc(201px * var(--scale))`;
+      overlayHead.style.background    = `rgba(${fr},${fg},${fb},${state.headlineFillOpacity})`;
+    } else {
+      overlayHead.style.top           = `calc(${state.headlineYPos}px * var(--scale))`;
+      overlayHead.style.paddingTop    = '0';
+      overlayHead.style.paddingBottom = '0';
+      overlayHead.style.background    = 'transparent';
+    }
+
+    headEl.style.letterSpacing = `calc(${state.headlineTracking}px * var(--scale))`;
+    headEl.style.lineHeight    = state.headlineLineHeight;
+    headEl.style.fontSize      = `calc(${state.headlineFontSize}px * var(--scale))`;
+    headEl.style.fontWeight    = state.headlineFont;
+    headEl.style.width         = '100%';
   }
 
   updateImageDistribution();
@@ -377,6 +417,11 @@ function buildGradientSection(sec) {
       ['horizontal', ICONS.gradH, 'Horizontal — sweeps left → right'],
       ['vertical',   ICONS.gradV, 'Vertical — sweeps top → bottom'],
     ],
+  }));
+
+  sec.appendChild(mkToggle({
+    id: 'ctrl-bar-flip-grad', label: 'Flip Bar Gradient', key: 'barFlipGradient',
+    onChange: () => redraw(),
   }));
 
   const barOuter = document.createElement('div'); barOuter.className = 'grad-bar-outer';
@@ -610,6 +655,18 @@ function mkInput({ id, label, key, onChange }) {
   return wrap;
 }
 
+function mkTextarea({ id, label, key, rows = 3, onChange }) {
+  const wrap = document.createElement('div'); wrap.className = 'control-row';
+  const lbl  = document.createElement('label'); lbl.htmlFor = id; lbl.textContent = label;
+  const ta   = document.createElement('textarea');
+  ta.id = id; ta.rows = rows; ta.className = 'text-input textarea-input';
+  ta.style.resize = 'vertical';
+  ta.value = state[key] || '';
+  ta.addEventListener('input', () => { state[key] = ta.value; if (onChange) onChange(state[key]); });
+  wrap.appendChild(lbl); wrap.appendChild(ta);
+  return wrap;
+}
+
 function mkSection(labelText, toggleKey = null) {
   const sec    = document.createElement('div'); sec.className = 'section';
   if (toggleKey) sec.classList.add('collapsible');
@@ -646,18 +703,88 @@ function mkSubLabel(text, mt = 16) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// BG PRESET SWATCHES (dynamic)
+// BG PRESET SWATCHES + GRADIENT PRESETS (dynamic)
 // ══════════════════════════════════════════════════════════════
 function buildBgPresetsUI(sec) {
+  // ── Flat colour swatches ──────────────────────────────────
   const wrap = document.createElement('div'); wrap.className = 'control-row';
-  const lbl  = document.createElement('label'); lbl.textContent = 'Background Presets';
+  const lbl  = document.createElement('label'); lbl.textContent = 'BG Colour Presets';
   wrap.appendChild(lbl);
-
   const row = document.createElement('div'); row.className = 'bg-swatch-row'; row.id = 'bg-swatch-container';
   wrap.appendChild(row);
   sec.appendChild(wrap);
-  // Initial population
   rebuildBgSwatches();
+
+  // ── Gradient BG presets ───────────────────────────────────
+  sec.appendChild(mkSubLabel('BG Gradient Presets', 14));
+
+  const gradWrap = document.createElement('div'); gradWrap.className = 'control-row';
+  const gradRow  = document.createElement('div'); gradRow.className = 'bg-grad-row'; gradRow.id = 'bg-grad-container';
+
+  // "Solid" reset button
+  const noneBtn = document.createElement('button');
+  noneBtn.type = 'button';
+  noneBtn.className = 'bg-grad-btn' + (!state.bgGradientMode ? ' active' : '');
+  noneBtn.dataset.key = 'none';
+  noneBtn.title = 'Solid colour (no BG gradient)';
+  const noneSw = document.createElement('span'); noneSw.className = 'bg-grad-swatch';
+  noneSw.style.background = '#0c0c0f';
+  const noneLbl = document.createElement('span'); noneLbl.textContent = 'Solid';
+  noneBtn.appendChild(noneSw); noneBtn.appendChild(noneLbl);
+  noneBtn.addEventListener('click', () => {
+    state.bgGradientMode = false;
+    _syncBgGradBtns();
+    redraw();
+  });
+  gradRow.appendChild(noneBtn);
+
+  // One button per BG_GRADIENTS entry
+  Object.entries(BG_GRADIENTS).forEach(([key, preset]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bg-grad-btn' + (state.bgGradientMode && state.bgGradientPreset === key ? ' active' : '');
+    btn.dataset.key = key;
+    btn.title = preset.label;
+
+    const css = preset.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
+    const sw  = document.createElement('span'); sw.className = 'bg-grad-swatch';
+    sw.style.background = `linear-gradient(to bottom, ${css})`;
+    const cap = document.createElement('span'); cap.textContent = preset.label;
+    btn.appendChild(sw); btn.appendChild(cap);
+
+    btn.addEventListener('click', () => {
+      state.bgGradientMode   = true;
+      state.bgGradientPreset = key;
+      state.bgGradientStops  = JSON.parse(JSON.stringify(preset.stops));
+      state.bgGradientDir    = preset.dir || 'vertical';
+      _syncBgGradBtns();
+      redraw();
+    });
+    gradRow.appendChild(btn);
+  });
+
+  function _syncBgGradBtns() {
+    gradRow.querySelectorAll('.bg-grad-btn').forEach(b => {
+      const on = b.dataset.key === 'none'
+        ? !state.bgGradientMode
+        : (state.bgGradientMode && state.bgGradientPreset === b.dataset.key);
+      b.classList.toggle('active', on);
+    });
+    const flipRow = document.getElementById('bg-grad-flip-row');
+    if (flipRow) flipRow.style.display = state.bgGradientMode ? '' : 'none';
+  }
+
+  gradWrap.appendChild(gradRow);
+  sec.appendChild(gradWrap);
+
+  // BG gradient flip — visible only when gradient mode is on
+  const bgFlipRow = mkToggle({
+    id: 'ctrl-bg-grad-flip', label: 'Flip BG Gradient', key: 'bgGradientFlip',
+    onChange: () => redraw(),
+  });
+  bgFlipRow.id = 'bg-grad-flip-row';
+  bgFlipRow.style.display = state.bgGradientMode ? '' : 'none';
+  sec.appendChild(bgFlipRow);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -767,10 +894,132 @@ function buildImageDistControls(sec) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// PRESETS  (localStorage persistence)
+// ══════════════════════════════════════════════════════════════
+const _PRESETS_KEY = 'pai-tool-presets-v1';
+
+function _loadPresets() {
+  try { return JSON.parse(localStorage.getItem(_PRESETS_KEY)) || []; }
+  catch { return []; }
+}
+function _savePresetsStore(list) {
+  localStorage.setItem(_PRESETS_KEY, JSON.stringify(list));
+}
+
+// Seed DEFAULT_PRESETS (from shared.js) into localStorage on first load.
+// Only runs if the key is absent or empty — never overwrites user presets.
+(function _seedDefaultPresets() {
+  try {
+    const existing = JSON.parse(localStorage.getItem(_PRESETS_KEY));
+    if (!existing || existing.length === 0) {
+      localStorage.setItem(_PRESETS_KEY, JSON.stringify(DEFAULT_PRESETS));
+    }
+  } catch { /* ignore */ }
+})();
+
+function buildPresetsSection(container) {
+  const { sec, content } = mkSection('Presets');
+
+  // ── Save row ────────────────────────────────────────────────
+  const saveRow = document.createElement('div');
+  saveRow.className = 'preset-save-row';
+
+  const nameInput = document.createElement('input');
+  nameInput.type        = 'text';
+  nameInput.className   = 'text-input';
+  nameInput.placeholder = 'Name this preset…';
+  nameInput.style.flex  = '1';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className   = 'seg-btn';
+  saveBtn.textContent = 'Save';
+  saveBtn.style.cssText = 'flex-shrink:0;padding:0 12px;height:30px;';
+
+  saveBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    const list = _loadPresets();
+    // Deep-copy state; drop transient fields that can't persist
+    const snap = JSON.parse(JSON.stringify({
+      ...state,
+      imageSrc:        '',   // blob URL won't survive a session
+      imageStyleOrder: null,
+    }));
+    list.unshift({ id: Date.now(), name, snap });
+    _savePresetsStore(list);
+    nameInput.value = '';
+    renderList();
+  });
+
+  // Also save on Enter
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveBtn.click(); });
+
+  saveRow.appendChild(nameInput);
+  saveRow.appendChild(saveBtn);
+  content.appendChild(saveRow);
+
+  // ── Preset list ─────────────────────────────────────────────
+  const listEl = document.createElement('div');
+  listEl.className = 'preset-list';
+  content.appendChild(listEl);
+
+  function renderList() {
+    const list = _loadPresets();
+    listEl.innerHTML = '';
+
+    if (list.length === 0) {
+      const msg = document.createElement('p');
+      msg.className   = 'preset-empty';
+      msg.textContent = 'No presets yet — configure the tool and save.';
+      listEl.appendChild(msg);
+      return;
+    }
+
+    list.forEach((preset, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'preset-chip';
+
+      const applyBtn = document.createElement('button');
+      applyBtn.className   = 'preset-name';
+      applyBtn.textContent = preset.name;
+      applyBtn.title       = 'Apply preset';
+      applyBtn.addEventListener('click', () => {
+        Object.assign(state, preset.snap);
+        syncControlsToState();
+        updateOverlays();
+        if (window._p5Resize) window._p5Resize();
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className   = 'preset-del';
+      delBtn.textContent = '×';
+      delBtn.title       = 'Delete preset';
+      delBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const updated = _loadPresets();
+        updated.splice(idx, 1);
+        _savePresetsStore(updated);
+        renderList();
+      });
+
+      chip.appendChild(applyBtn);
+      chip.appendChild(delBtn);
+      listEl.appendChild(chip);
+    });
+  }
+
+  renderList();
+  container.appendChild(sec);
+}
+
+// ══════════════════════════════════════════════════════════════
 // BUILD GUI
 // ══════════════════════════════════════════════════════════════
 function buildGUI() {
   const scroll = document.getElementById('panel-scroll');
+
+  // ── Presets ───────────────────────────────────────────────
+  buildPresetsSection(scroll);
 
   // ── Canvas ────────────────────────────────────────────────
   const canvasSec = mkSection('Canvas');
@@ -783,7 +1032,16 @@ function buildGUI() {
       ['9:16',   ICONS.asp9x16,  '9:16 — Story'],
       ['1.91:1', ICONS.asp191x1, '1.91:1 — Wide'],
     ],
-    onChange: v => { updateAspectLabel(v); if (window._p5Resize) window._p5Resize(); },
+    onChange: v => {
+      updateAspectLabel(v);
+      const defaults = ASPECT_RATIO_DEFAULTS[v];
+      if (defaults) {
+        Object.assign(state, defaults);
+        syncControlsToState();
+        updateOverlays();
+      }
+      if (window._p5Resize) window._p5Resize();
+    },
   }));
   scroll.appendChild(canvasSec.sec);
 
@@ -801,7 +1059,7 @@ function buildGUI() {
 
   // Rectangle Group
   const groupRect = document.createElement('div'); groupRect.id = 'group-rect'; groupRect.className = 'ctrl-group' + (state.compositionType==='rectangle'?' active':'');
-  groupRect.appendChild(mkSlider({ id:'ctrl-count',    label:'Rectangle Count',    min:2, max:40, step:1,   key:'rectCount' }));
+  groupRect.appendChild(mkSlider({ id:'ctrl-count',    label:'Rectangle Count',    min:2, max:120, step:1,   key:'rectCount' }));
   groupRect.appendChild(mkSlider({ id:'ctrl-spacing',  label:'Item Spacing',        min:0, max:30, step:0.5, key:'spacing', decimals:1 }));
   groupRect.appendChild(mkToggle({ id:'ctrl-symmetry', label:'Symmetry (size)',     key:'symmetry' }));
   groupRect.appendChild(mkToggle({ id:'ctrl-mirror-y', label:'Mirror Axis',         key:'mirrorY'  }));
@@ -816,30 +1074,62 @@ function buildGUI() {
 
   // Circular Group
   const groupCirc = document.createElement('div'); groupCirc.id = 'group-circ'; groupCirc.className = 'ctrl-group' + (state.compositionType==='circular'?' active':'');
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',  label:'Circle Count',     min:2,  max:40,   step:1,  key:'circleCount' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',      label:'Max Diameter',      min:50, max:2000, step:10, key:'circleDiameter' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x',   label:'X Center Offset',  min:0,  max:1000, step:1,  key:'circleSpacingX' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y',   label:'Y Center Offset',  min:0,  max:1000, step:1,  key:'circleSpacingY' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',   label:'Circle Count',  min:2,  max:40,   step:1,  key:'circleCount' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',       label:'Max Diameter',  min:50, max:2000, step:10, key:'circleDiameter' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-stagger', label:'Stagger',       min:0,  max:800,  step:5,  key:'circleStagger' }));
   groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align', label:'Anchor Position', key:'circleAlignment' }));
-  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror', label:'Mirror X & Y Axis', key:'circleMirrorXY' }));
+  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',      label:'Mirror X & Y Axis',             key:'circleMirrorXY'   }));
+  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor', label:'Flip Anchor — smallest at boundary', key:'circleFlipAnchor' }));
+  groupCirc.appendChild(mkSubLabel('Text-Aware Positioning'));
+  groupCirc.appendChild(mkToggle({
+    id:'ctrl-circle-text-link', label:'Link X to Headline', key:'circleTextLink',
+    onChange: () => {
+      document.getElementById('ctrl-circle-text-padding').closest('.control-row').style.display =
+        state.circleTextLink ? '' : 'none';
+      redraw();
+    },
+  }));
+  const textPadRow = mkSlider({ id:'ctrl-circle-text-padding', label:'Text Gap (extra px)', min:-200, max:400, step:10, key:'circleTextPadding' });
+  textPadRow.style.display = state.circleTextLink ? '' : 'none';
+  groupCirc.appendChild(textPadRow);
+  groupCirc.appendChild(mkSubLabel('Fine Tune'));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
+  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
 
   graphSec.content.appendChild(groupRect);
   graphSec.content.appendChild(groupCirc);
 
-  const switchType = type => {
-    state.compositionType = type;
-    cardRect.classList.toggle('active', type==='rectangle');
-    cardCirc.classList.toggle('active', type==='circular');
-    groupRect.classList.toggle('active', type==='rectangle');
-    groupCirc.classList.toggle('active', type==='circular');
-    redraw();
-  };
-  cardRect.addEventListener('click', () => switchType('rectangle'));
-  cardCirc.addEventListener('click', () => switchType('circular'));
+  // Curve controls are only relevant for rectangle composition
+  const curveWrap = document.createElement('div');
+  curveWrap.id = 'curve-controls-wrap';
+  curveWrap.style.display = state.compositionType === 'circular' ? 'none' : '';
 
-  // Shared
-  graphSec.content.appendChild(mkSlider({ id:'ctrl-extent',    label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
-  graphSec.content.appendChild(mkSegmented({
+  curveWrap.appendChild(mkSlider({ id:'ctrl-extent', label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
+
+  // Noise seed row — only visible when 'noise' curve is selected
+  const noiseSeedRow = mkSlider({ id:'ctrl-noise-seed', label:'Noise Seed', min:1, max:999, step:1, key:'noiseSeed',
+    onChange: () => redraw(),
+  });
+  noiseSeedRow.id = 'noise-seed-row';
+  noiseSeedRow.style.display = state.curveType === 'noise' ? '' : 'none';
+
+  const reseedRow = document.createElement('div');
+  reseedRow.id = 'noise-reseed-row';
+  reseedRow.className = 'control-row';
+  reseedRow.style.display = state.curveType === 'noise' ? '' : 'none';
+  const reseedBtn = document.createElement('button');
+  reseedBtn.type = 'button';
+  reseedBtn.className = 'ctrl-btn';
+  reseedBtn.textContent = '⟳  New Seed';
+  reseedBtn.addEventListener('click', () => {
+    state.noiseSeed = Math.floor(Math.random() * 999) + 1;
+    const sl = document.getElementById('ctrl-noise-seed');
+    if (sl) { sl.value = state.noiseSeed; const v = sl.closest('.control-row')?.querySelector('.val'); if (v) v.textContent = state.noiseSeed; }
+    redraw();
+  });
+  reseedRow.appendChild(reseedBtn);
+
+  curveWrap.appendChild(mkSegmented({
     id:'ctrl-curve', label:'Curve Distribution', key:'curveType', variant:'grid grid-4',
     options:[
       ['flat',       curveThumbSvg('flat'),       'Flat'],
@@ -849,15 +1139,38 @@ function buildGUI() {
       ['parabolic',  curveThumbSvg('parabolic'),  'Parabolic — Peak Center'],
       ['hyperbolic', curveThumbSvg('hyperbolic'), 'Hyperbolic'],
       ['bezier',     curveThumbSvg('bezier'),     'Bezier'],
+      ['noise',      curveThumbSvg('noise'),      'Noise — Organic'],
     ],
+    onChange: v => {
+      const show = v === 'noise';
+      noiseSeedRow.style.display = show ? '' : 'none';
+      reseedRow.style.display    = show ? '' : 'none';
+      redraw();
+    },
   }));
-  graphSec.content.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
+  curveWrap.appendChild(noiseSeedRow);
+  curveWrap.appendChild(reseedRow);
+  curveWrap.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
 
   const cvWrap = document.createElement('div'); cvWrap.className = 'control-row';
   const cvLbl  = document.createElement('label'); cvLbl.textContent = 'Curve Preview';
   const cvCvs  = document.createElement('canvas'); cvCvs.id = 'curve-preview'; cvCvs.width = 260; cvCvs.height = 60;
   cvWrap.appendChild(cvLbl); cvWrap.appendChild(cvCvs);
-  graphSec.content.appendChild(cvWrap);
+  curveWrap.appendChild(cvWrap);
+
+  graphSec.content.appendChild(curveWrap);
+
+  const switchType = type => {
+    state.compositionType = type;
+    cardRect.classList.toggle('active', type==='rectangle');
+    cardCirc.classList.toggle('active', type==='circular');
+    groupRect.classList.toggle('active', type==='rectangle');
+    groupCirc.classList.toggle('active', type==='circular');
+    curveWrap.style.display = type === 'circular' ? 'none' : '';
+    redraw();
+  };
+  cardRect.addEventListener('click', () => switchType('rectangle'));
+  cardCirc.addEventListener('click', () => switchType('circular'));
 
   buildGradientSection(graphSec.content);
 
@@ -903,8 +1216,16 @@ function buildGUI() {
 
   // ── Headline ─────────────────────────────────────────────
   const hlSec = mkSection('Headline', 'showHeadline');
-  hlSec.content.appendChild(mkInput({ id:'ctrl-hl-l1', label:'Line 1', key:'headlineLine1', onChange: updateOverlays }));
-  hlSec.content.appendChild(mkInput({ id:'ctrl-hl-l2', label:'Line 2', key:'headlineLine2', onChange: updateOverlays }));
+  hlSec.content.appendChild(mkTextarea({ id:'ctrl-hl-text',   label:'Text',              key:'headlineText',           rows:3,  onChange: updateOverlays }));
+  hlSec.content.appendChild(mkInput(  { id:'ctrl-hl-words',   label:'Highlight Words',   key:'headlineHighlightWords',          onChange: updateOverlays }));
+  hlSec.content.appendChild(mkSubLabel('Colours', 8));
+  hlSec.content.appendChild(mkColor(  { id:'ctrl-hl-color',   label:'Text Colour',       key:'headlineTextColor',               onChange: updateOverlays }));
+  hlSec.content.appendChild(mkColor(  { id:'ctrl-hl-hl-color',label:'Highlight Colour',  key:'headlineHighlightColor',          onChange: updateOverlays }));
+  hlSec.content.appendChild(mkSubLabel('Fill', 8));
+  hlSec.content.appendChild(mkToggle( { id:'ctrl-hl-fill',    label:'Fill Behind Text',  key:'headlineFillEnabled',             onChange: updateOverlays }));
+  hlSec.content.appendChild(mkColor(  { id:'ctrl-hl-fill-col',label:'Fill Colour',       key:'headlineFillColor',               onChange: updateOverlays }));
+  hlSec.content.appendChild(mkSlider( { id:'ctrl-hl-fill-op', label:'Fill Opacity',      min:0, max:1, step:0.01, key:'headlineFillOpacity', decimals:2, onChange: updateOverlays }));
+  hlSec.content.appendChild(mkSubLabel('Typography', 8));
   hlSec.content.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'Font Type',  key:'headlineFont',  options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
   hlSec.content.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'Alignment', key:'headlineAlign',
     options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
@@ -912,7 +1233,7 @@ function buildGUI() {
   hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-lh',       label:'Line Height', min:0.5, max:2.5, step:0.05, key:'headlineLineHeight', decimals:2, onChange: updateOverlays }));
   hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-fs',       label:'Font Size',   min:10,  max:300, step:1,    key:'headlineFontSize',   decimals:0, onChange: updateOverlays }));
   hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-y',        label:'Y Position',  min:0,   max:1500,step:1,    key:'headlineYPos',       decimals:0, onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-pad',      label:'L/R Padding', min:0,   max:400, step:1,    key:'headlinePadding',    decimals:0, onChange: updateOverlays }));
+  hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-pad',      label:'L/R Padding', min:0,   max:700, step:1,    key:'headlinePadding',    decimals:0, onChange: updateOverlays }));
   scroll.appendChild(hlSec.sec);
 
   // ── Image Placeholder ────────────────────────────────────
@@ -955,7 +1276,8 @@ function buildGUI() {
 
   // ── Footer ───────────────────────────────────────────────
   const ftSec = mkSection('Footer', 'showFooter');
-  ftSec.content.appendChild(mkInput({ id:'ctrl-ft-byline',   label:'Byline',    key:'footerByline', onChange: updateOverlays }));
+  ftSec.content.appendChild(mkInput({ id:'ctrl-ft-byline',   label:'Byline',       key:'footerByline',   onChange: updateOverlays }));
+  ftSec.content.appendChild(mkColor({ id:'ctrl-ft-color',    label:'Text Colour',  key:'footerTextColor', onChange: updateOverlays }));
   ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-font',   label:'Font Type', key:'footerFont',   options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
   ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'Alignment', key:'footerAlign',
     options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
@@ -967,54 +1289,34 @@ function buildGUI() {
 // RANDOMIZE
 // ══════════════════════════════════════════════════════════════
 function randomize() {
-  const curves      = ['flat','linear','quadratic','cubic','parabolic','hyperbolic','bezier'];
-  const baselines   = ['bottom','top','left','right'];
-  const circAligns  = ['top-left','top-center','top-right','center-left','center','center-right','bottom-left','bottom-center','bottom-right'];
-  const gradDirs    = ['horizontal','vertical'];
-  const palKeys     = Object.keys(PALETTES).filter(k => k !== 'custom');
-  const comps       = ['rectangle','circular'];
+  // ── Visual / aesthetic parameters only ───────────────────────
+  // Composition structure (type, curve, baseline, anchor, mirror,
+  // symmetry) is intentionally NOT randomised — those are manual choices.
+  const gradDirs = ['horizontal','vertical'];
+  const palKeys  = Object.keys(PALETTES).filter(k => k !== 'custom');
 
-  state.compositionType   = comps       [Math.floor(Math.random()*comps.length)];
-  state.curveType         = curves      [Math.floor(Math.random()*curves.length)];
-  state.flipCurve         = Math.random() > 0.5;
-  state.baseline          = baselines   [Math.floor(Math.random()*baselines.length)];
-  state.circleAlignment   = circAligns  [Math.floor(Math.random()*circAligns.length)];
-  state.gradientDirection = gradDirs    [Math.floor(Math.random()*gradDirs.length)];
-  state.rectCount         = Math.floor(Math.random()*28)+4;
-  state.circleCount       = Math.floor(Math.random()*15)+5;
-  state.circleDiameter    = Math.floor(Math.random()*1200)+200;
-  state.circleSpacingX    = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
-  state.circleSpacingY    = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
-  state.spacing           = 0;
-  state.extent            = +(0.4+Math.random()*0.55).toFixed(2);
-  state.opacity           = +(0.55+Math.random()*0.40).toFixed(2);
-  state.blur              = Math.random()<0.35 ? +(Math.random()*10).toFixed(1) : 0;
-  state.symmetry          = Math.random() > 0.25;
-  state.mirrorY           = Math.random() > 0.5;
-  state.circleMirrorXY    = Math.random() > 0.5;
-  state.innerGlow         = Math.random() > 0.5;
+  state.gradientDirection  = gradDirs[Math.floor(Math.random()*gradDirs.length)];
+  state.rectCount          = Math.floor(Math.random()*60)+10;   // 10–70
+  state.circleCount        = Math.floor(Math.random()*15)+5;
+  state.circleDiameter     = Math.floor(Math.random()*1200)+200;
+  state.circleSpacingX     = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
+  state.circleSpacingY     = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
+  state.spacing            = 0;
+  state.extent             = +(0.4+Math.random()*0.55).toFixed(2);
+  state.opacity            = +(0.55+Math.random()*0.40).toFixed(2);
+  state.blur               = Math.random()<0.35 ? +(Math.random()*10).toFixed(1) : 0;
+  state.innerGlow          = Math.random() > 0.5;
   state.innerGlowIntensity = +(0.3+Math.random()*0.65).toFixed(2);
+  // Always generate a fresh noise seed so noise mode looks different each time
+  state.noiseSeed = Math.floor(Math.random()*999)+1;
 
   // Pick palette and auto-apply matching bg
   state.palette = palKeys[Math.floor(Math.random()*palKeys.length)];
   applyPalette(state.palette);
 
-  // Pick a bg from the matching tone palette
-  const bgs    = getActiveBgPresets();
+  const bgs = getActiveBgPresets();
   state.bgColor = bgs[Math.floor(Math.random()*bgs.length)].color;
-
-  // Auto-adapt stroke based on tone
   state.imageStrokeStyle = (getPaletteTone() === 'cool') ? 'frosty' : 'marketing';
-
-  document.querySelectorAll('.comp-card').forEach(c => {
-    c.classList.toggle('active', c.querySelector('span').textContent.toLowerCase() === state.compositionType);
-  });
-  const groupRect = document.getElementById('group-rect');
-  const groupCirc = document.getElementById('group-circ');
-  if (groupRect && groupCirc) {
-    groupRect.classList.toggle('active', state.compositionType==='rectangle');
-    groupCirc.classList.toggle('active', state.compositionType==='circular');
-  }
 
   rebuildBgSwatches();
   syncControlsToState();
@@ -1025,23 +1327,26 @@ function randomize() {
 function syncControlsToState() {
   // Sliders with numeric display
   [
-    ['ctrl-count',        'rectCount',         0],
-    ['ctrl-circle-count', 'circleCount',        0],
-    ['ctrl-diameter',     'circleDiameter',     0],
-    ['ctrl-circle-sp-x',  'circleSpacingX',     0],
-    ['ctrl-circle-sp-y',  'circleSpacingY',     0],
-    ['ctrl-spacing',      'spacing',            1],
-    ['ctrl-extent',       'extent',             2],
-    ['ctrl-opacity',      'opacity',            2],
-    ['ctrl-blur',         'blur',               1],
-    ['ctrl-ds-spread',    'dsSpread',           2],
-    ['ctrl-ds-opacity',   'dsOpacity',          2],
-    ['ctrl-glow-intensity','innerGlowIntensity',2],
-    ['ctrl-hl-y',         'headlineYPos',       0],
-    ['ctrl-hl-pad',       'headlinePadding',    0],
-    ['ctrl-img-rad',      'imageRadius',        0],
-    ['ctrl-img-count',    'imageMultiCount',    0],
-    ['ctrl-img-multi-spacing','imageMultiSpacing',0],
+    ['ctrl-count',              'rectCount',          0],
+    ['ctrl-circle-count',       'circleCount',        0],
+    ['ctrl-diameter',           'circleDiameter',     0],
+    ['ctrl-circle-stagger',     'circleStagger',      0],
+    ['ctrl-circle-sp-x',        'circleSpacingX',     0],
+    ['ctrl-circle-sp-y',        'circleSpacingY',     0],
+    ['ctrl-circle-text-padding','circleTextPadding',  0],
+    ['ctrl-noise-seed',         'noiseSeed',          0],
+    ['ctrl-spacing',           'spacing',             1],
+    ['ctrl-extent',            'extent',              2],
+    ['ctrl-opacity',           'opacity',             2],
+    ['ctrl-blur',              'blur',                1],
+    ['ctrl-ds-spread',         'dsSpread',            2],
+    ['ctrl-ds-opacity',        'dsOpacity',           2],
+    ['ctrl-glow-intensity',    'innerGlowIntensity',  2],
+    ['ctrl-hl-y',              'headlineYPos',        0],
+    ['ctrl-hl-pad',            'headlinePadding',     0],
+    ['ctrl-img-rad',           'imageRadius',         0],
+    ['ctrl-img-count',         'imageMultiCount',     0],
+    ['ctrl-img-multi-spacing', 'imageMultiSpacing',   0],
   ].forEach(([id, key, dec]) => {
     const el = document.getElementById(id); if (!el) return;
     el.value = state[key];
@@ -1077,19 +1382,44 @@ function syncControlsToState() {
     seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === String(state[key])));
   });
 
-  // Color
-  const bg = document.getElementById('ctrl-bgcolor'); if (bg) bg.value = state.bgColor;
+  // Color pickers
+  [
+    ['ctrl-bgcolor',      'bgColor'],
+    ['ctrl-hl-color',     'headlineTextColor'],
+    ['ctrl-hl-hl-color',  'headlineHighlightColor'],
+    ['ctrl-hl-fill-col',  'headlineFillColor'],
+    ['ctrl-ft-color',     'footerTextColor'],
+  ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.value = state[key]; });
+
+  // Text areas / inputs
+  const hlTa = document.getElementById('ctrl-hl-text');
+  if (hlTa) hlTa.value = state.headlineText || '';
+  const hlWords = document.getElementById('ctrl-hl-words');
+  if (hlWords) hlWords.value = state.headlineHighlightWords || '';
+
+  // Sliders — fill opacity
+  const fillOp = document.getElementById('ctrl-hl-fill-op');
+  if (fillOp) {
+    fillOp.value = state.headlineFillOpacity;
+    const b = fillOp.closest('.control-row')?.querySelector('.val');
+    if (b) b.textContent = (+state.headlineFillOpacity).toFixed(2);
+  }
 
   // Checkboxes
   [
-    ['ctrl-symmetry',     'symmetry'],
-    ['ctrl-mirror-y',     'mirrorY'],
-    ['ctrl-flip-curve',   'flipCurve'],
-    ['ctrl-circle-mirror','circleMirrorXY'],
-    ['ctrl-global-op',    'globalOpacity'],
-    ['ctrl-depth-shadow', 'depthShadow'],
-    ['ctrl-inner-glow',   'innerGlow'],
-    ['ctrl-img-multi',    'imageMulti'],
+    ['ctrl-symmetry',          'symmetry'],
+    ['ctrl-mirror-y',          'mirrorY'],
+    ['ctrl-flip-curve',        'flipCurve'],
+    ['ctrl-circle-mirror',     'circleMirrorXY'],
+    ['ctrl-circle-flip-anchor','circleFlipAnchor'],
+    ['ctrl-circle-text-link',  'circleTextLink'],
+    ['ctrl-global-op',         'globalOpacity'],
+    ['ctrl-depth-shadow',      'depthShadow'],
+    ['ctrl-inner-glow',        'innerGlow'],
+    ['ctrl-img-multi',         'imageMulti'],
+    ['ctrl-bar-flip-grad',     'barFlipGradient'],
+    ['ctrl-bg-grad-flip',      'bgGradientFlip'],
+    ['ctrl-hl-fill',           'headlineFillEnabled'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.checked = state[key]; });
 
   updateAspectLabel(state.aspectRatio);
@@ -1097,6 +1427,11 @@ function syncControlsToState() {
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Apply the correct layout defaults for the starting aspect ratio so
+  // the GUI and canvas open with the right values (not the generic fallbacks).
+  const initDefaults = ASPECT_RATIO_DEFAULTS[state.aspectRatio];
+  if (initDefaults) Object.assign(state, initDefaults);
+
   buildGUI();
   updateAspectLabel(state.aspectRatio);
   renderGradientBar();
@@ -1113,24 +1448,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Inline-editable headlines on the canvas, kept in sync with panel inputs
-  [
-    { el: 'headline-l1', stateKey: 'headlineLine1', inputId: 'ctrl-hl-l1' },
-    { el: 'headline-l2', stateKey: 'headlineLine2', inputId: 'ctrl-hl-l2' },
-  ].forEach(({ el, stateKey, inputId }) => {
-    const node = document.getElementById(el);
-    if (!node) return;
-    node.contentEditable = 'true';
-    node.spellcheck = false;
-    node.addEventListener('input', () => {
-      state[stateKey] = node.textContent;
-      const inp = document.getElementById(inputId);
-      if (inp) inp.value = state[stateKey];
+  // Inline-editable headline on the canvas, kept in sync with panel textarea
+  const hlNode = document.getElementById('headline-text');
+  if (hlNode) {
+    hlNode.contentEditable = 'true';
+    hlNode.spellcheck = false;
+    // On focus: switch to plain-text mode so user edits raw text
+    hlNode.addEventListener('focus', () => {
+      hlNode.textContent = state.headlineText || '';
     });
-    node.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); node.blur(); }
+    hlNode.addEventListener('input', () => {
+      state.headlineText = hlNode.innerText;
+      const ta = document.getElementById('ctrl-hl-text');
+      if (ta) ta.value = state.headlineText;
     });
-  });
+    hlNode.addEventListener('blur', () => {
+      // Re-apply highlights on blur
+      updateOverlays();
+    });
+  }
 
   // Export — delegates to sketch.js _exportCanvas
   document.getElementById('btn-export').addEventListener('click', () => {
