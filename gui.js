@@ -220,15 +220,22 @@ function updateOverlays() {
 
     overlayHead.style.textAlign    = state.headlineAlign;
     overlayHead.style.display      = state.showHeadline ? 'flex' : 'none';
-    overlayHead.style.top          = `calc(${state.headlineYPos}px * var(--scale))`;
     overlayHead.style.paddingLeft  = `calc(${state.headlinePadding}px * var(--scale))`;
     overlayHead.style.paddingRight = `calc(${state.headlinePadding}px * var(--scale))`;
-    // Headline fill background
+
+    // Fill mode: box anchored to canvas top with internal top/bottom padding.
+    // 112 Figma-px → 214 design-units; 105 Figma-px → 201 design-units.
     if (state.headlineFillEnabled) {
       const [fr, fg, fb] = hexToRgb(state.headlineFillColor || '#000000');
-      overlayHead.style.background = `rgba(${fr},${fg},${fb},${state.headlineFillOpacity})`;
+      overlayHead.style.top           = '0';
+      overlayHead.style.paddingTop    = `calc(214px * var(--scale))`;
+      overlayHead.style.paddingBottom = `calc(201px * var(--scale))`;
+      overlayHead.style.background    = `rgba(${fr},${fg},${fb},${state.headlineFillOpacity})`;
     } else {
-      overlayHead.style.background = 'transparent';
+      overlayHead.style.top           = `calc(${state.headlineYPos}px * var(--scale))`;
+      overlayHead.style.paddingTop    = '0';
+      overlayHead.style.paddingBottom = '0';
+      overlayHead.style.background    = 'transparent';
     }
 
     headEl.style.letterSpacing = `calc(${state.headlineTracking}px * var(--scale))`;
@@ -1298,6 +1305,11 @@ function syncControlsToState() {
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Apply the correct layout defaults for the starting aspect ratio so
+  // the GUI and canvas open with the right values (not the generic fallbacks).
+  const initDefaults = ASPECT_RATIO_DEFAULTS[state.aspectRatio];
+  if (initDefaults) Object.assign(state, initDefaults);
+
   buildGUI();
   updateAspectLabel(state.aspectRatio);
   renderGradientBar();

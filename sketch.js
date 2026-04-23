@@ -691,9 +691,16 @@ const sketch = function(p) {
     const textColor = state.headlineTextColor || '#ffffff';
     const lineH     = fontSize * state.headlineLineHeight;
 
-    const headRect  = _xRect(headEl, ab, ES);
-
     // ── Headline fill background ───────────────────────────────
+    // When fill is ON the overlay is at top:0 with internal padding, so its
+    // bounding rect starts at the canvas top edge. The #headline-text child
+    // is positioned inside via padding, giving the correct 112/105 Figma-px gaps.
+    const headRect = _xRect(headEl, ab, ES);
+    const textEl   = document.getElementById('headline-text');
+    // Use the inner text element's Y for the first line of text, so that
+    // padding-top (fill mode) or headlineYPos (no-fill mode) are both respected.
+    const textStartY = textEl ? _xRect(textEl, ab, ES).y : headRect.y;
+
     if (state.headlineFillEnabled) {
       const [fr, fg, fb] = hexToRgb(state.headlineFillColor || '#000000');
       ctx.fillStyle = `rgba(${fr},${fg},${fb},${state.headlineFillOpacity})`;
@@ -721,7 +728,6 @@ const sketch = function(p) {
     const hlColor = state.headlineHighlightColor || '#f66a24';
 
     // ── Draw highlighted word rects from DOM spans ─────────────
-    // (DOM span positions are already scaled correctly via getBoundingClientRect)
     if (hlWords.size > 0) {
       const [hr, hg, hb] = hexToRgb(hlColor);
       headEl.querySelectorAll('.headline-hl').forEach(span => {
@@ -735,7 +741,7 @@ const sketch = function(p) {
     // ── Draw text lines ────────────────────────────────────────
     const lines = (state.headlineText || '').split('\n');
     ctx.fillStyle = textColor;
-    let y = headRect.y;
+    let y = textStartY;
     lines.forEach(line => {
       if (line.trim()) ctx.fillText(line, textX, y);
       y += lineH;
