@@ -576,7 +576,10 @@ const sketch = function(p) {
       : `rgba(104,58,39,${op})`;
 
     const instances = overlay.querySelectorAll('.img-instance');
-    const targets   = instances.length > 0 ? Array.from(instances) : [overlay];
+    // Sort by CSS z-index ascending so the HIGHEST z-index (front) is drawn last,
+    // matching the CSS stagger where element 0 has z-index=count (frontmost).
+    const targets = (instances.length > 0 ? Array.from(instances) : [overlay])
+      .sort((a, b) => (parseInt(a.style.zIndex) || 0) - (parseInt(b.style.zIndex) || 0));
 
     for (const el of targets) {
       const rect = _xRect(el, ab, ES);
@@ -640,7 +643,9 @@ const sketch = function(p) {
     // 2. Clip to footer rect, redraw snapshot through a blur filter —
     //    this is the canvas equivalent of backdrop-filter: blur().
     // 3. Overlay rgba(0,0,0,0.6) to match the CSS background colour.
-    const blurRadius = Math.round(100 * (ab.width / 2696) * ES);
+    // CSS backdrop-filter:blur(100px) → 100 CSS-px × ES = export canvas pixels.
+    // (ab.width/2696 was wrong — the CSS blur value is in viewport px, not design units.)
+    const blurRadius = 100 * ES;
     const snap = document.createElement('canvas');
     snap.width  = ctx.canvas.width;
     snap.height = ctx.canvas.height;
