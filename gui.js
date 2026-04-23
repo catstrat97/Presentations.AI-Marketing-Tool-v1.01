@@ -906,6 +906,17 @@ function _savePresetsStore(list) {
   localStorage.setItem(_PRESETS_KEY, JSON.stringify(list));
 }
 
+// Seed DEFAULT_PRESETS (from shared.js) into localStorage on first load.
+// Only runs if the key is absent or empty — never overwrites user presets.
+(function _seedDefaultPresets() {
+  try {
+    const existing = JSON.parse(localStorage.getItem(_PRESETS_KEY));
+    if (!existing || existing.length === 0) {
+      localStorage.setItem(_PRESETS_KEY, JSON.stringify(DEFAULT_PRESETS));
+    }
+  } catch { /* ignore */ }
+})();
+
 function buildPresetsSection(container) {
   const { sec, content } = mkSection('Presets');
 
