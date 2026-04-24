@@ -56,7 +56,9 @@ function renderBackground(p) {
 function computeRectFill(dc, fillT, rx, ry, rw, rh, alpha, flip) {
   const a       = alpha.toFixed(3);
   const isHDist = state.baseline === 'bottom' || state.baseline === 'top';
-  const gradDir = state.gradientDirection;
+  // Gradient direction is auto-derived from the baseline setting.
+  // Horizontal baselines (left/right) → horizontal gradient; vertical (top/bottom) → vertical.
+  const gradDir = (state.baseline === 'left' || state.baseline === 'right') ? 'horizontal' : 'vertical';
   const sorted  = [...state.gradientStops].sort((a,b) => a.stop - b.stop);
 
   // Apply global bar flip (XOR with per-rect mirror flip)

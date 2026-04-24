@@ -372,9 +372,90 @@ function syncPaletteSelect() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// THEME SYNC — filters palette + BG controls to active theme
+// ══════════════════════════════════════════════════════════════
+function syncTheme() {
+  // Theme toggle active state
+  const themeSeg = document.getElementById('ctrl-theme');
+  if (themeSeg) {
+    themeSeg.querySelectorAll('.seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.value === state.theme));
+  }
+
+  // Show only palettes that match the active theme (hide 'custom' and cross-theme)
+  const palRow = document.getElementById('ctrl-palette');
+  if (palRow) {
+    palRow.querySelectorAll('.palette-sw').forEach(btn => {
+      const key  = btn.dataset.value;
+      const tone = PALETTES[key]?.tone;
+      btn.style.display = (tone && tone === state.theme) ? '' : 'none';
+    });
+  }
+
+  // Rebuild solid BG swatches for the new theme
+  rebuildBgSwatches();
+
+  // Show only BG gradient presets that match the active theme
+  const gradRow = document.getElementById('bg-grad-container');
+  if (gradRow) {
+    gradRow.querySelectorAll('.bg-grad-btn').forEach(btn => {
+      const key = btn.dataset.key;
+      if (key === 'none') return; // always visible
+      const bgTheme = BG_GRADIENTS[key]?.theme;
+      btn.style.display = (!bgTheme || bgTheme === state.theme) ? '' : 'none';
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // GRADIENT SECTION
 // ══════════════════════════════════════════════════════════════
 function buildGradientSection(sec) {
+  // ── Theme toggle (Warm / Cool) ────────────────────────────
+  sec.appendChild(mkSegmented({
+    id: 'ctrl-theme', label: 'Theme', key: 'theme',
+    options: [['warm', 'Warm'], ['cool', 'Cool']],
+    onChange: (v) => {
+      state.theme = v;
+
+      // Reset palette to first one in the new theme
+      const firstPal = Object.entries(PALETTES).find(([, p]) => p.tone === v);
+      if (firstPal) { state.palette = firstPal[0]; applyPalette(firstPal[0]); }
+
+      // Set stroke style from theme
+      state.imageStrokeStyle = (v === 'cool') ? 'frosty' : 'marketing';
+
+      // Reset BG gradient if it belongs to the wrong theme
+      if (state.bgGradientMode && state.bgGradientPreset) {
+        const currentBgTheme = BG_GRADIENTS[state.bgGradientPreset]?.theme;
+        if (currentBgTheme !== v) {
+          const firstBg = Object.entries(BG_GRADIENTS).find(([, bg]) => bg.theme === v);
+          if (firstBg) {
+            state.bgGradientPreset = firstBg[0];
+            state.bgGradientStops  = JSON.parse(JSON.stringify(firstBg[1].stops));
+            state.bgGradientDir    = firstBg[1].dir || 'vertical';
+          } else {
+            state.bgGradientMode = false;
+          }
+        }
+      }
+
+      // Reset solid BG color to a mid-range swatch in the new theme
+      const newBgs = BG_PALETTE_MAP[v] || [];
+      if (newBgs.length && !newBgs.some(b => b.color.toLowerCase() === state.bgColor.toLowerCase())) {
+        state.bgColor = newBgs[Math.floor(newBgs.length / 2)].color;
+        const bgPicker = document.getElementById('ctrl-bgcolor');
+        if (bgPicker) bgPicker.value = state.bgColor;
+      }
+
+      syncTheme();
+      syncPaletteSelect();
+      renderStopList();
+      updateOverlays();
+      redraw();
+    },
+  }));
+
   // Palette swatches — gradient previews
   const palWrap = document.createElement('div'); palWrap.className = 'control-row';
   const palLabel = document.createElement('label'); palLabel.textContent = 'Palette';
@@ -384,8 +465,7 @@ function buildGradientSection(sec) {
   const selectPalette = (key) => {
     state.palette = key;
     if (key !== 'custom') applyPalette(key);
-    const tone = getPaletteTone();
-    state.imageStrokeStyle = (tone === 'cool') ? 'frosty' : 'marketing';
+    state.imageStrokeStyle = (state.theme === 'cool') ? 'frosty' : 'marketing';
     palRow.querySelectorAll('.palette-sw').forEach(s => s.classList.toggle('active', s.dataset.value === key));
     rebuildBgSwatches();
     updateOverlays();
@@ -393,11 +473,14 @@ function buildGradientSection(sec) {
   };
 
   Object.entries(PALETTES).forEach(([key, p]) => {
+    if (!p.tone) return; // skip 'custom' — not shown in theme-filtered palette row
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.dataset.value = key;
     btn.title = p.label;
-    btn.className = 'palette-sw' + (state.palette === key ? ' active' : '') + (key === 'custom' ? ' custom' : '');
+    btn.className = 'palette-sw' + (state.palette === key ? ' active' : '');
+    // Initial visibility — hide if tone doesn't match current theme
+    btn.style.display = (p.tone === state.theme) ? '' : 'none';
     const sw = document.createElement('span'); sw.className = 'palette-sw-fill';
     if (p.stops) {
       const css = p.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
@@ -410,14 +493,6 @@ function buildGradientSection(sec) {
   });
   palWrap.appendChild(palRow);
   sec.appendChild(palWrap);
-
-  sec.appendChild(mkSegmented({
-    id: 'ctrl-grad-dir', label: 'Direction', key: 'gradientDirection',
-    options: [
-      ['horizontal', ICONS.gradH, 'Horizontal — sweeps left → right'],
-      ['vertical',   ICONS.gradV, 'Vertical — sweeps top → bottom'],
-    ],
-  }));
 
   sec.appendChild(mkToggle({
     id: 'ctrl-bar-flip-grad', label: 'Flip Bar Gradient', key: 'barFlipGradient',
@@ -738,13 +813,14 @@ function buildBgPresetsUI(sec) {
   });
   gradRow.appendChild(noneBtn);
 
-  // One button per BG_GRADIENTS entry
+  // One button per BG_GRADIENTS entry — hidden if it doesn't match the active theme
   Object.entries(BG_GRADIENTS).forEach(([key, preset]) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'bg-grad-btn' + (state.bgGradientMode && state.bgGradientPreset === key ? ' active' : '');
     btn.dataset.key = key;
     btn.title = preset.label;
+    btn.style.display = (!preset.theme || preset.theme === state.theme) ? '' : 'none';
 
     const css = preset.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
     const sw  = document.createElement('span'); sw.className = 'bg-grad-swatch';
@@ -1292,10 +1368,10 @@ function randomize() {
   // ── Visual / aesthetic parameters only ───────────────────────
   // Composition structure (type, curve, baseline, anchor, mirror,
   // symmetry) is intentionally NOT randomised — those are manual choices.
-  const gradDirs = ['horizontal','vertical'];
-  const palKeys  = Object.keys(PALETTES).filter(k => k !== 'custom');
+  // Pick a random theme first, then restrict everything to that theme
+  state.theme = Math.random() > 0.5 ? 'warm' : 'cool';
+  const palKeys = Object.keys(PALETTES).filter(k => PALETTES[k].tone === state.theme);
 
-  state.gradientDirection  = gradDirs[Math.floor(Math.random()*gradDirs.length)];
   state.rectCount          = Math.floor(Math.random()*60)+10;   // 10–70
   state.circleCount        = Math.floor(Math.random()*15)+5;
   state.circleDiameter     = Math.floor(Math.random()*1200)+200;
@@ -1310,15 +1386,16 @@ function randomize() {
   // Always generate a fresh noise seed so noise mode looks different each time
   state.noiseSeed = Math.floor(Math.random()*999)+1;
 
-  // Pick palette and auto-apply matching bg
+  // Pick palette and auto-apply matching BG (all within the chosen theme)
   state.palette = palKeys[Math.floor(Math.random()*palKeys.length)];
   applyPalette(state.palette);
 
   const bgs = getActiveBgPresets();
   state.bgColor = bgs[Math.floor(Math.random()*bgs.length)].color;
-  state.imageStrokeStyle = (getPaletteTone() === 'cool') ? 'frosty' : 'marketing';
+  state.imageStrokeStyle = (state.theme === 'cool') ? 'frosty' : 'marketing';
 
   rebuildBgSwatches();
+  syncTheme();
   syncControlsToState();
   updateOverlays();
   renderStopList();
@@ -1369,7 +1446,6 @@ function syncControlsToState() {
     ['ctrl-aspect',       'aspectRatio'],
     ['ctrl-baseline',     'baseline'],
     ['ctrl-curve',        'curveType'],
-    ['ctrl-grad-dir',     'gradientDirection'],
     ['ctrl-hl-align',     'headlineAlign'],
     ['ctrl-ft-align',     'footerAlign'],
     ['ctrl-img-dist-mode','imageDistMode'],
@@ -1423,6 +1499,9 @@ function syncControlsToState() {
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.checked = state[key]; });
 
   updateAspectLabel(state.aspectRatio);
+
+  // Sync theme toggle and all filtered sub-menus
+  syncTheme();
 }
 
 // ── Init ──────────────────────────────────────────────────────
@@ -1438,6 +1517,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderStopList();
   renderCurvePreview();
   updateOverlays();
+  syncTheme();
 
   // Clicking the image placeholder on the canvas opens the file picker
   const overlayImg = document.getElementById('overlay-image');

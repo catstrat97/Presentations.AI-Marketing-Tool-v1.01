@@ -64,7 +64,7 @@ const PALETTES = {
   custom: { label: 'Custom', stops: null },
 
   marketingWarm: {
-    label: 'Marketing Warm',
+    label: 'Warm-Dark',
     tone: 'warm',
     stops: [
       { stop: 0.00, color: '#ffb96e' },
@@ -77,7 +77,7 @@ const PALETTES = {
   },
 
   marketingCool: {
-    label: 'Marketing Cool',
+    label: 'Cool-Dark Mode',
     tone: 'cool',
     stops: [
       { stop: 0.00, color: '#cae2ff' },
@@ -90,7 +90,7 @@ const PALETTES = {
   },
 
   arctic: {
-    label: 'Arctic',
+    label: 'Cool-Light',
     tone: 'cool',
     stops: [
       { stop: 0.0, color: '#c8e6ff' },
@@ -105,17 +105,20 @@ const PALETTES = {
 // so the background gradient always matches what's on the shapes.
 const BG_GRADIENTS = {
   marketingWarm: {
-    label: 'Marketing Warm',
+    label: 'Warm-Dark',
+    theme: 'warm',
     dir:   'vertical',
     get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingWarm.stops)); },
   },
   marketingCool: {
-    label: 'Marketing Cool',
+    label: 'Cool-Dark Mode',
+    theme: 'cool',
     dir:   'vertical',
     get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingCool.stops)); },
   },
   arctic: {
-    label: 'Arctic',
+    label: 'Cool-Light',
+    theme: 'cool',
     dir:   'vertical',
     get stops() { return JSON.parse(JSON.stringify(PALETTES.arctic.stops)); },
   },
@@ -215,6 +218,7 @@ const state = {
   gradientDirection: 'horizontal',
   extent:            0.85,
 
+  theme:   'warm',
   palette: 'marketingWarm',
   gradientStops: JSON.parse(JSON.stringify(PALETTES.marketingWarm.stops)),
 
@@ -301,15 +305,14 @@ function getTextColorForBg(hex) {
   return getColorLuma(hex) > 140 ? '#000000' : '#ffffff';
 }
 
-/** Returns the current palette tone ('warm' | 'cool' | 'custom') */
+/** Returns the active theme ('warm' | 'cool'). Theme is the single source of truth. */
 function getPaletteTone() {
-  const p = PALETTES[state.palette];
-  return (p && p.tone) ? p.tone : 'custom';
+  return state.theme || 'warm';
 }
 
-/** Returns the BG preset list appropriate for the current palette */
+/** Returns the BG solid preset list for the active theme */
 function getActiveBgPresets() {
-  return BG_PALETTE_MAP[getPaletteTone()] || BG_PALETTE_MAP.custom;
+  return BG_PALETTE_MAP[state.theme] || BG_PALETTE_MAP.custom;
 }
 
 // ── Curve ────────────────────────────────────────────────────
