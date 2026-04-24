@@ -13,19 +13,71 @@ function redraw() {
 // OVERLAY UPDATER
 // ══════════════════════════════════════════════════════════════
 
-// Apply explicit text colours (user-controlled via colour pickers). No auto-glow.
+// Compute rgba colour from base hex + opacity and apply to DOM + state.
 function applyTextAdaptation() {
   // Headline
+  const hlBase = state.headlineTextBase || '#ffffff';
+  const hlOp   = state.headlineTextOpacity ?? 1.0;
+  const [hr, hg, hb] = hexToRgb(hlBase);
+  state.headlineTextColor = `rgba(${hr},${hg},${hb},${hlOp})`;
   document.querySelectorAll('.headline-text').forEach(el => {
-    el.style.color      = state.headlineTextColor || '#ffffff';
+    el.style.color      = state.headlineTextColor;
     el.style.textShadow = 'none';
   });
 
   // Footer byline
+  const ftBase = state.footerTextBase || '#ffffff';
+  const ftOp   = state.footerTextOpacity ?? 1.0;
+  const [fr, fg, fb] = hexToRgb(ftBase);
+  state.footerTextColor = `rgba(${fr},${fg},${fb},${ftOp})`;
   const bylineEl = document.getElementById('footer-byline');
   if (bylineEl) {
-    bylineEl.style.color      = state.footerTextColor || '#ffffff';
+    bylineEl.style.color      = state.footerTextColor;
     bylineEl.style.textShadow = 'none';
+  }
+}
+
+// Derives and sets text base colour automatically from the current BG state.
+// Solid BG: luminance threshold. Gradient BG: white by default, dark when flipped.
+function autoAssignTextColor() {
+  let base;
+  if (state.bgGradientMode) {
+    base = state.bgGradientFlip ? '#050505' : '#ffffff';
+  } else {
+    base = getColorLuma(state.bgColor) > 140 ? '#050505' : '#ffffff';
+  }
+  state.headlineTextBase = base;
+  state.footerTextBase   = base;
+  applyTextAdaptation();
+  syncTextBaseUI();
+}
+
+// Keeps the Dark/Light toggle buttons and opacity sliders in sync with state.
+function syncTextBaseUI() {
+  ['hl', 'ft'].forEach(prefix => {
+    const baseKey = prefix === 'hl' ? 'headlineTextBase' : 'footerTextBase';
+    const opKey   = prefix === 'hl' ? 'headlineTextOpacity' : 'footerTextOpacity';
+    const seg = document.getElementById(`ctrl-${prefix}-text-base`);
+    if (seg) seg.querySelectorAll('.seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.value === state[baseKey]));
+    const opEl = document.getElementById(`ctrl-${prefix}-text-op`);
+    if (opEl) {
+      opEl.value = state[opKey] ?? 1;
+      const valEl = opEl.closest('.control-row')?.querySelector('.val');
+      if (valEl) valEl.textContent = Math.round((state[opKey] ?? 1) * 100) + '%';
+    }
+  });
+}
+
+// Called whenever BG colour or gradient mode/flip changes.
+// Runs auto text-colour assignment and, in sync mode, updates stop 3 to match BG.
+function onBgChanged() {
+  autoAssignTextColor();
+  if (state.paletteMode === 'sync') {
+    enforceSync();
+    renderGradientBar();
+    renderStopList();
+    if (window._p5Redraw) window._p5Redraw();
   }
 }
 
@@ -47,7 +99,7 @@ function rebuildBgSwatches() {
       state.bgColor = preset.color;
       const colorEl = document.getElementById('ctrl-bgcolor');
       if (colorEl) colorEl.value = preset.color;
-      applyTextAdaptation();
+      onBgChanged();
       redraw();
     });
     row.appendChild(sw);
@@ -304,6 +356,72 @@ function renderGradientBar() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// PALETTE MODE ENFORCEMENT
+// ══════════════════════════════════════════════════════════════
+
+// Symmetrical: 5 stops, stop positions [0, p, 0.5, 1-p, 1],
+// stop 4 colour = stop 2, stop 5 colour = stop 1.
+function enforceSymmetrical() {
+  const s = state.gradientStops;
+  while (s.length < 5) s.push({ stop: 0.5, color: s[0]?.color || '#888888' });
+  s.sort((a, b) => a.stop - b.stop);
+  while (s.length > 5) s.pop();
+  s[0].stop = 0;
+  s[1].stop = Math.max(0.05, Math.min(0.49, parseFloat(s[1].stop.toFixed(2))));
+  s[2].stop = 0.5;
+  s[3].stop = parseFloat((1 - s[1].stop).toFixed(2));
+  s[4].stop = 1.0;
+  s[3].color = s[1].color;
+  s[4].color = s[0].color;
+}
+
+// Sync: 3 stops, stop 3 position always 1.0, colour always tracks bgColor.
+function enforceSync() {
+  const s = state.gradientStops;
+  while (s.length < 3) s.push({ stop: s.length / 2, color: '#888888' });
+  s.sort((a, b) => a.stop - b.stop);
+  while (s.length > 3) s.pop();
+  s[0].stop = 0;
+  s[1].stop = Math.max(0.1, Math.min(0.89, parseFloat(s[1].stop.toFixed(2))));
+  s[2].stop = 1.0;
+  s[2].color = state.bgColor; // always tracks BG
+}
+
+// Shuffle editable stops from the active palette, maintaining light→dark ordering.
+function shuffleGradient() {
+  const palette = PALETTES[state.palette];
+  const raw = palette?.stops
+    ? [...palette.stops].sort((a, b) => getColorLuma(b.color) - getColorLuma(a.color))
+    : [];
+  if (!raw.length) return;
+  const colors = raw.map(s => s.color);
+  const n = colors.length;
+
+  if (state.paletteMode === 'symmetrical') {
+    const band = Math.max(1, Math.floor(n / 3));
+    const i0 = Math.floor(Math.random() * band);
+    const i1 = band + Math.floor(Math.random() * band);
+    const i2 = Math.min(n - 1, 2 * band + Math.floor(Math.random() * band));
+    const rev = Math.random() > 0.5; // light-dark-light or dark-light-dark
+    state.gradientStops[0].color = rev ? colors[i2] : colors[i0];
+    state.gradientStops[1].color = colors[i1];
+    state.gradientStops[2].color = rev ? colors[i0] : colors[i2];
+    enforceSymmetrical();
+  } else if (state.paletteMode === 'sync') {
+    const half = Math.max(1, Math.floor(n / 2));
+    const i0 = Math.floor(Math.random() * half);
+    const i1 = half + Math.floor(Math.random() * Math.max(1, n - half));
+    state.gradientStops[0].color = colors[i0];       // lighter
+    state.gradientStops[1].color = colors[Math.min(n - 1, i1)]; // darker
+    enforceSync();
+  }
+
+  renderGradientBar();
+  renderStopList();
+  redraw();
+}
+
+// ══════════════════════════════════════════════════════════════
 // STOP LIST
 // ══════════════════════════════════════════════════════════════
 function renderStopList() {
@@ -311,58 +429,116 @@ function renderStopList() {
   if (!list) return;
   list.innerHTML = '';
 
-  [...state.gradientStops].sort((a,b) => a.stop - b.stop).forEach(stop => {
-    const row = document.createElement('div');
-    row.className = 'stop-row';
+  const mode = state.paletteMode || 'normal';
 
+  // Enforce constraints before rendering
+  if (mode === 'symmetrical') enforceSymmetrical();
+  else if (mode === 'sync')   enforceSync();
+
+  const sorted = [...state.gradientStops].sort((a, b) => a.stop - b.stop);
+
+  const stopLabels = {
+    symmetrical: ['Anchor', 'Mid', 'Centre', 'Mid ·auto', 'Anchor ·auto'],
+    sync:        ['Stop 1', 'Stop 2', 'BG Sync ·auto'],
+  };
+
+  sorted.forEach((stop, displayIdx) => {
+    const isLocked =
+      (mode === 'symmetrical' && displayIdx >= 3) ||
+      (mode === 'sync'        && displayIdx === 2);
+
+    const row = document.createElement('div');
+    row.className = 'stop-row' + (isLocked ? ' stop-locked' : '');
+
+    // Label (non-normal modes only)
+    if (mode !== 'normal' && stopLabels[mode]?.[displayIdx]) {
+      const lbl = document.createElement('span');
+      lbl.className = 'stop-label';
+      lbl.textContent = stopLabels[mode][displayIdx];
+      row.appendChild(lbl);
+    }
+
+    // Colour picker
     const colorInput = document.createElement('input');
     colorInput.type      = 'color';
     colorInput.value     = stop.color;
     colorInput.className = 'stop-color-input';
-    colorInput.title     = 'Pick color';
+    colorInput.title     = isLocked ? 'Auto-synced' : 'Pick colour';
+    colorInput.disabled  = isLocked;
 
-    colorInput.addEventListener('input', () => {
-      const idx = state.gradientStops.findIndex(s => s === stop);
-      if (idx >= 0) { state.gradientStops[idx].color = colorInput.value; stop.color = colorInput.value; }
-      if (window._p5Redraw) window._p5Redraw();
-      renderGradientBar();
-    });
-    colorInput.addEventListener('change', () => renderStopList());
+    if (!isLocked) {
+      colorInput.addEventListener('input', () => {
+        const idx = state.gradientStops.findIndex(s => s === stop);
+        if (idx >= 0) { state.gradientStops[idx].color = colorInput.value; stop.color = colorInput.value; }
+        if (mode === 'symmetrical') enforceSymmetrical();
+        else if (mode === 'sync')   enforceSync();
+        if (window._p5Redraw) window._p5Redraw();
+        renderGradientBar();
+        if (mode !== 'normal') renderStopList(); // refresh locked mirrors
+      });
+      colorInput.addEventListener('change', () => { if (mode !== 'normal') renderStopList(); });
+    }
+    row.appendChild(colorInput);
 
-    const posWrap   = document.createElement('div'); posWrap.className = 'stop-pos-wrap';
-    const posSlider = document.createElement('input');
-    posSlider.type  = 'range'; posSlider.min = '0'; posSlider.max = '1';
-    posSlider.step  = '0.01'; posSlider.value = stop.stop;
-    posSlider.className = 'stop-pos-slider';
-    const posVal = document.createElement('span');
-    posVal.className = 'stop-pos-val';
-    posVal.textContent = stop.stop.toFixed(2);
+    if (!isLocked) {
+      // Position slider
+      // In symmetrical mode stops 0 and 2 are fixed; only stop 1 moves (and 3 mirrors it)
+      const posFixed = mode === 'symmetrical' && (displayIdx === 0 || displayIdx === 2);
+      const posWrap  = document.createElement('div'); posWrap.className = 'stop-pos-wrap';
+      const posSlider = document.createElement('input');
+      posSlider.type = 'range'; posSlider.min = '0'; posSlider.max = '1';
+      posSlider.step = '0.01'; posSlider.value = stop.stop;
+      posSlider.className = 'stop-pos-slider';
+      posSlider.disabled  = posFixed;
 
-    posSlider.addEventListener('input', () => {
-      const idx = state.gradientStops.findIndex(s => s === stop);
-      if (idx >= 0) state.gradientStops[idx].stop = parseFloat(posSlider.value);
-      posVal.textContent = parseFloat(posSlider.value).toFixed(2);
-      redraw();
-    });
-    posSlider.addEventListener('change', () => renderStopList());
-    posWrap.appendChild(posSlider); posWrap.appendChild(posVal);
+      const posVal = document.createElement('span');
+      posVal.className = 'stop-pos-val';
+      posVal.textContent = stop.stop.toFixed(2);
 
-    const del = document.createElement('button');
-    del.className = 'stop-delete'; del.title = 'Remove stop';
-    del.disabled  = state.gradientStops.length <= 2;
-    del.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-    del.addEventListener('click', () => {
-      const idx = state.gradientStops.findIndex(s => s === stop);
-      if (idx >= 0 && state.gradientStops.length > 2) {
-        state.gradientStops.splice(idx, 1);
-        state.palette = 'custom'; syncPaletteSelect();
-        redraw(); renderStopList();
+      posSlider.addEventListener('input', () => {
+        const idx = state.gradientStops.findIndex(s => s === stop);
+        if (idx >= 0) state.gradientStops[idx].stop = parseFloat(posSlider.value);
+        posVal.textContent = parseFloat(posSlider.value).toFixed(2);
+        if (mode === 'symmetrical') enforceSymmetrical();
+        else if (mode === 'sync')   enforceSync();
+        redraw();
+      });
+      posSlider.addEventListener('change', () => renderStopList());
+      posWrap.appendChild(posSlider); posWrap.appendChild(posVal);
+      row.appendChild(posWrap);
+
+      // Delete — normal mode only
+      if (mode === 'normal') {
+        const del = document.createElement('button');
+        del.className = 'stop-delete'; del.title = 'Remove stop';
+        del.disabled  = state.gradientStops.length <= 2;
+        del.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+        del.addEventListener('click', () => {
+          const idx = state.gradientStops.findIndex(s => s === stop);
+          if (idx >= 0 && state.gradientStops.length > 2) {
+            state.gradientStops.splice(idx, 1);
+            state.palette = 'custom'; syncPaletteSelect();
+            redraw(); renderStopList();
+          }
+        });
+        row.appendChild(del);
       }
-    });
+    } else {
+      // Locked row: lock icon instead of controls
+      const lockIcon = document.createElement('span');
+      lockIcon.className = 'stop-lock-icon';
+      lockIcon.innerHTML = `<svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><rect x="2" y="5" width="6" height="7" rx="1"/><path d="M3 5V3.5a2 2 0 0 1 4 0V5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`;
+      row.appendChild(lockIcon);
+    }
 
-    row.appendChild(colorInput); row.appendChild(posWrap); row.appendChild(del);
     list.appendChild(row);
   });
+
+  // Show normal add/subdivide actions only in normal mode
+  const actionsEl  = document.getElementById('grad-stop-actions');
+  const shuffleEl  = document.getElementById('grad-shuffle-row');
+  if (actionsEl) actionsEl.style.display  = mode === 'normal' ? '' : 'none';
+  if (shuffleEl) shuffleEl.style.display  = mode !== 'normal' ? '' : 'none';
 }
 
 function syncPaletteSelect() {
@@ -494,6 +670,20 @@ function buildGradientSection(sec) {
   palWrap.appendChild(palRow);
   sec.appendChild(palWrap);
 
+  // ── Palette mode selector ─────────────────────────────────
+  sec.appendChild(mkSegmented({
+    id: 'ctrl-palette-mode', label: 'Mode', key: 'paletteMode',
+    options: [['normal', 'Normal'], ['symmetrical', 'Symmetrical'], ['sync', 'Sync']],
+    onChange: (v) => {
+      state.paletteMode = v;
+      if (v === 'symmetrical') enforceSymmetrical();
+      else if (v === 'sync')   enforceSync();
+      renderGradientBar();
+      renderStopList();
+      redraw();
+    },
+  }));
+
   sec.appendChild(mkToggle({
     id: 'ctrl-bar-flip-grad', label: 'Flip Bar Gradient', key: 'barFlipGradient',
     onChange: () => redraw(),
@@ -508,7 +698,7 @@ function buildGradientSection(sec) {
   const stopList = document.createElement('div'); stopList.id = 'grad-stops-list'; stopList.className = 'grad-stops-list';
   sec.appendChild(stopList);
 
-  const actions = document.createElement('div'); actions.className = 'grad-actions';
+  const actions = document.createElement('div'); actions.className = 'grad-actions'; actions.id = 'grad-stop-actions';
   const addBtn  = document.createElement('button'); addBtn.className = 'btn small'; addBtn.id = 'btn-add-stop'; addBtn.textContent = '+ Add Stop';
   addBtn.addEventListener('click', () => { addGradientStop(0.5); state.palette = 'custom'; syncPaletteSelect(); redraw(); renderStopList(); });
 
@@ -520,6 +710,13 @@ function buildGradientSection(sec) {
   subDiv.appendChild(subLabel); subDiv.appendChild(subN); subDiv.appendChild(subBtn);
   actions.appendChild(addBtn); actions.appendChild(subDiv);
   sec.appendChild(actions);
+
+  // Shuffle row — visible in symmetrical / sync modes only
+  const shuffleRow = document.createElement('div'); shuffleRow.className = 'grad-actions'; shuffleRow.id = 'grad-shuffle-row'; shuffleRow.style.display = 'none';
+  const shuffleBtn = document.createElement('button'); shuffleBtn.className = 'btn small'; shuffleBtn.id = 'btn-shuffle-stops'; shuffleBtn.textContent = '⟳ Shuffle Colours';
+  shuffleBtn.addEventListener('click', shuffleGradient);
+  shuffleRow.appendChild(shuffleBtn);
+  sec.appendChild(shuffleRow);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -809,6 +1006,7 @@ function buildBgPresetsUI(sec) {
   noneBtn.addEventListener('click', () => {
     state.bgGradientMode = false;
     _syncBgGradBtns();
+    onBgChanged();
     redraw();
   });
   gradRow.appendChild(noneBtn);
@@ -834,6 +1032,7 @@ function buildBgPresetsUI(sec) {
       state.bgGradientStops  = JSON.parse(JSON.stringify(preset.stops));
       state.bgGradientDir    = preset.dir || 'vertical';
       _syncBgGradBtns();
+      onBgChanged();
       redraw();
     });
     gradRow.appendChild(btn);
@@ -856,7 +1055,7 @@ function buildBgPresetsUI(sec) {
   // BG gradient flip — visible only when gradient mode is on
   const bgFlipRow = mkToggle({
     id: 'ctrl-bg-grad-flip', label: 'Flip BG Gradient', key: 'bgGradientFlip',
-    onChange: () => redraw(),
+    onChange: () => { onBgChanged(); redraw(); },
   });
   bgFlipRow.id = 'bg-grad-flip-row';
   bgFlipRow.style.display = state.bgGradientMode ? '' : 'none';
@@ -1061,6 +1260,18 @@ function buildPresetsSection(container) {
       applyBtn.title       = 'Apply preset';
       applyBtn.addEventListener('click', () => {
         Object.assign(state, preset.snap);
+        // Migrate old presets that stored headlineTextColor/footerTextColor
+        // as plain hex strings without the new base+opacity fields.
+        if (!preset.snap.headlineTextBase) {
+          const luma = getColorLuma(state.headlineTextColor || '#ffffff');
+          state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
+          state.headlineTextOpacity = 1.0;
+        }
+        if (!preset.snap.footerTextBase) {
+          const luma = getColorLuma(state.footerTextColor || '#ffffff');
+          state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
+          state.footerTextOpacity = 1.0;
+        }
         syncControlsToState();
         updateOverlays();
         if (window._p5Resize) window._p5Resize();
@@ -1086,6 +1297,56 @@ function buildPresetsSection(container) {
 
   renderList();
   container.appendChild(sec);
+}
+
+// ══════════════════════════════════════════════════════════════
+// TEXT BASE CONTROL — Dark/Light toggle + opacity slider
+// ══════════════════════════════════════════════════════════════
+// prefix: 'hl' (headline) | 'ft' (footer)
+function mkTextBaseControl(prefix) {
+  const baseKey = prefix === 'hl' ? 'headlineTextBase'    : 'footerTextBase';
+  const opKey   = prefix === 'hl' ? 'headlineTextOpacity' : 'footerTextOpacity';
+
+  const wrap = document.createElement('div'); wrap.className = 'text-base-ctrl';
+
+  // Dark / Light toggle
+  const togRow = document.createElement('div'); togRow.className = 'control-row';
+  const togLbl = document.createElement('label'); togLbl.textContent = 'Text Colour';
+  togRow.appendChild(togLbl);
+  const seg = document.createElement('div'); seg.className = 'segmented'; seg.id = `ctrl-${prefix}-text-base`;
+  [['#050505', 'Dark'], ['#ffffff', 'Light']].forEach(([value, label]) => {
+    const btn = document.createElement('button'); btn.type = 'button';
+    btn.className = 'seg-btn' + (state[baseKey] === value ? ' active' : '');
+    btn.dataset.value = value; btn.textContent = label;
+    btn.addEventListener('click', () => {
+      state[baseKey] = value;
+      seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === value));
+      applyTextAdaptation();
+      updateOverlays();
+    });
+    seg.appendChild(btn);
+  });
+  togRow.appendChild(seg); wrap.appendChild(togRow);
+
+  // Opacity slider
+  const opRow = document.createElement('div'); opRow.className = 'control-row';
+  const opLbl = document.createElement('label'); opLbl.htmlFor = `ctrl-${prefix}-text-op`;
+  opLbl.appendChild(document.createTextNode('Opacity'));
+  const opVal = document.createElement('span'); opVal.className = 'val';
+  opVal.textContent = Math.round((state[opKey] ?? 1) * 100) + '%';
+  opLbl.appendChild(opVal);
+  const opSlider = document.createElement('input');
+  opSlider.type = 'range'; opSlider.id = `ctrl-${prefix}-text-op`;
+  opSlider.min = '0'; opSlider.max = '1'; opSlider.step = '0.01';
+  opSlider.value = state[opKey] ?? 1;
+  opSlider.addEventListener('input', () => {
+    state[opKey] = parseFloat(opSlider.value);
+    opVal.textContent = Math.round(state[opKey] * 100) + '%';
+    applyTextAdaptation();
+    updateOverlays();
+  });
+  opRow.appendChild(opLbl); opRow.appendChild(opSlider); wrap.appendChild(opRow);
+  return wrap;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1256,7 +1517,7 @@ function buildGUI() {
   // Background
   graphSec.content.appendChild(mkColor({
     id:'ctrl-bgcolor', label:'Background', key:'bgColor',
-    onChange: () => { applyTextAdaptation(); rebuildBgSwatches(); },
+    onChange: () => { onBgChanged(); rebuildBgSwatches(); },
   }));
   buildBgPresetsUI(graphSec.content);
 
@@ -1295,7 +1556,7 @@ function buildGUI() {
   hlSec.content.appendChild(mkTextarea({ id:'ctrl-hl-text',   label:'Text',              key:'headlineText',           rows:3,  onChange: updateOverlays }));
   hlSec.content.appendChild(mkInput(  { id:'ctrl-hl-words',   label:'Highlight Words',   key:'headlineHighlightWords',          onChange: updateOverlays }));
   hlSec.content.appendChild(mkSubLabel('Colours', 8));
-  hlSec.content.appendChild(mkColor(  { id:'ctrl-hl-color',   label:'Text Colour',       key:'headlineTextColor',               onChange: updateOverlays }));
+  hlSec.content.appendChild(mkTextBaseControl('hl'));
   hlSec.content.appendChild(mkColor(  { id:'ctrl-hl-hl-color',label:'Highlight Colour',  key:'headlineHighlightColor',          onChange: updateOverlays }));
   hlSec.content.appendChild(mkSubLabel('Fill', 8));
   hlSec.content.appendChild(mkToggle( { id:'ctrl-hl-fill',    label:'Fill Behind Text',  key:'headlineFillEnabled',             onChange: updateOverlays }));
@@ -1353,7 +1614,7 @@ function buildGUI() {
   // ── Footer ───────────────────────────────────────────────
   const ftSec = mkSection('Footer', 'showFooter');
   ftSec.content.appendChild(mkInput({ id:'ctrl-ft-byline',   label:'Byline',       key:'footerByline',   onChange: updateOverlays }));
-  ftSec.content.appendChild(mkColor({ id:'ctrl-ft-color',    label:'Text Colour',  key:'footerTextColor', onChange: updateOverlays }));
+  ftSec.content.appendChild(mkTextBaseControl('ft'));
   ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-font',   label:'Font Type', key:'footerFont',   options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
   ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'Alignment', key:'footerAlign',
     options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
@@ -1443,10 +1704,11 @@ function syncControlsToState() {
 
   // Segmented controls
   [
-    ['ctrl-aspect',       'aspectRatio'],
-    ['ctrl-baseline',     'baseline'],
-    ['ctrl-curve',        'curveType'],
-    ['ctrl-hl-align',     'headlineAlign'],
+    ['ctrl-aspect',        'aspectRatio'],
+    ['ctrl-baseline',      'baseline'],
+    ['ctrl-curve',         'curveType'],
+    ['ctrl-palette-mode',  'paletteMode'],
+    ['ctrl-hl-align',      'headlineAlign'],
     ['ctrl-ft-align',     'footerAlign'],
     ['ctrl-img-dist-mode','imageDistMode'],
     ['ctrl-img-stroke',   'imageStrokeStyle'],
@@ -1461,10 +1723,8 @@ function syncControlsToState() {
   // Color pickers
   [
     ['ctrl-bgcolor',      'bgColor'],
-    ['ctrl-hl-color',     'headlineTextColor'],
     ['ctrl-hl-hl-color',  'headlineHighlightColor'],
     ['ctrl-hl-fill-col',  'headlineFillColor'],
-    ['ctrl-ft-color',     'footerTextColor'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.value = state[key]; });
 
   // Text areas / inputs
@@ -1502,6 +1762,8 @@ function syncControlsToState() {
 
   // Sync theme toggle and all filtered sub-menus
   syncTheme();
+  // Sync text base toggles and opacity sliders
+  syncTextBaseUI();
 }
 
 // ── Init ──────────────────────────────────────────────────────
@@ -1516,6 +1778,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderGradientBar();
   renderStopList();
   renderCurvePreview();
+  autoAssignTextColor(); // sets smart default text colour for initial BG
   updateOverlays();
   syncTheme();
 

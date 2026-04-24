@@ -722,6 +722,28 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
 .stop-delete:hover { background: rgba(239, 68, 68, 0.1); }
 .stop-delete:disabled { color: var(--border); cursor: not-allowed; }
 
+/* ── Palette mode locked / labelled stops ──────────────────── */
+.stop-row.stop-locked { opacity: 0.42; pointer-events: none; }
+.stop-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  min-width: 62px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+.stop-lock-icon {
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Text base control (Dark/Light + opacity) ──────────────── */
+.text-base-ctrl { display: flex; flex-direction: column; gap: 0; }
+
 /* ── Gradient Actions Row ─────────────────────────────────── */
 .grad-actions {
   display: flex;

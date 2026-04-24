@@ -218,8 +218,9 @@ const state = {
   gradientDirection: 'horizontal',
   extent:            0.85,
 
-  theme:   'warm',
-  palette: 'marketingWarm',
+  theme:       'warm',
+  palette:     'marketingWarm',
+  paletteMode: 'normal',        // 'normal' | 'symmetrical' | 'sync'
   gradientStops: JSON.parse(JSON.stringify(PALETTES.marketingWarm.stops)),
 
   opacity:      0.88,
@@ -252,7 +253,9 @@ const state = {
   headlineText:           'Start with a prompt\nEnd with a presentation',
   headlineHighlightWords: '',
   headlineHighlightColor: '#f66a24',
-  headlineTextColor:      '#ffffff',
+  headlineTextBase:       '#ffffff',   // '#050505' | '#ffffff' — two-state toggle
+  headlineTextOpacity:    1.0,          // 0–1, applied on top of base
+  headlineTextColor:      '#ffffff',   // computed by applyTextAdaptation(), do not set manually
   headlineFillEnabled:    false,
   headlineFillColor:      '#000000',
   headlineFillOpacity:    0.5,
@@ -284,9 +287,11 @@ const state = {
   imageStyleIndex:  0,
   imageStyleOrder:  null,
 
-  showFooter:      true,
-  footerByline:    'Start for free today',
-  footerTextColor: '#ffffff',
+  showFooter:       true,
+  footerByline:     'Start for free today',
+  footerTextBase:   '#ffffff',   // '#050505' | '#ffffff'
+  footerTextOpacity: 1.0,
+  footerTextColor:  '#ffffff',  // computed by applyTextAdaptation()
   footerAlign:     'left',
   footerTracking:  -1.63,
   footerFont:      '500',
