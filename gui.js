@@ -1391,7 +1391,9 @@ function buildGUI() {
   cardRect.innerHTML = `<svg viewBox="0 0 24 24"><rect x="5" y="6" width="3" height="12" rx="1"/><rect x="10.5" y="3" width="3" height="15" rx="1"/><rect x="16" y="8" width="3" height="10" rx="1"/></svg><span>Rectangle</span>`;
   const cardCirc = document.createElement('div'); cardCirc.className = 'comp-card' + (state.compositionType==='circular'?' active':'');
   cardCirc.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="6" cy="14" r="3.5"/><circle cx="12" cy="7" r="3.5"/><circle cx="18" cy="11" r="3.5"/></svg><span>Circular</span>`;
-  cards.appendChild(cardRect); cards.appendChild(cardCirc);
+  const cardImg  = document.createElement('div'); cardImg.className = 'comp-card comp-card-img' + (state.compositionType==='image'?' active':'');
+  cardImg.innerHTML = `<div class="comp-img-thumb"><img src="Background%20Presets/BG-Dark.png" alt="Dark"><img src="Background%20Presets/BG-Light.png" alt="Light"></div><span>Image</span>`;
+  cards.appendChild(cardRect); cards.appendChild(cardCirc); cards.appendChild(cardImg);
   graphSec.content.appendChild(cards);
 
   // Rectangle Group
@@ -1433,13 +1435,18 @@ function buildGUI() {
   groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
   groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
 
+  // Image Group — minimal: just an opacity control
+  const groupImg = document.createElement('div'); groupImg.id = 'group-img-comp'; groupImg.className = 'ctrl-group' + (state.compositionType==='image'?' active':'');
+  groupImg.appendChild(mkSlider({ id:'ctrl-img-preset-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'imagePresetOpacity', decimals:2 }));
+
   graphSec.content.appendChild(groupRect);
   graphSec.content.appendChild(groupCirc);
+  graphSec.content.appendChild(groupImg);
 
   // Curve controls are only relevant for rectangle composition
   const curveWrap = document.createElement('div');
   curveWrap.id = 'curve-controls-wrap';
-  curveWrap.style.display = state.compositionType === 'circular' ? 'none' : '';
+  curveWrap.style.display = (state.compositionType === 'circular' || state.compositionType === 'image') ? 'none' : '';
 
   curveWrap.appendChild(mkSlider({ id:'ctrl-extent', label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
 
@@ -1501,13 +1508,16 @@ function buildGUI() {
     state.compositionType = type;
     cardRect.classList.toggle('active', type==='rectangle');
     cardCirc.classList.toggle('active', type==='circular');
+    cardImg.classList.toggle('active',  type==='image');
     groupRect.classList.toggle('active', type==='rectangle');
     groupCirc.classList.toggle('active', type==='circular');
-    curveWrap.style.display = type === 'circular' ? 'none' : '';
+    groupImg.classList.toggle('active',  type==='image');
+    curveWrap.style.display = (type === 'circular' || type === 'image') ? 'none' : '';
     redraw();
   };
   cardRect.addEventListener('click', () => switchType('rectangle'));
   cardCirc.addEventListener('click', () => switchType('circular'));
+  cardImg.addEventListener('click',  () => switchType('image'));
 
   buildGradientSection(graphSec.content);
 
@@ -1673,6 +1683,7 @@ function syncControlsToState() {
     ['ctrl-count',              'rectCount',          0],
     ['ctrl-circle-count',       'circleCount',        0],
     ['ctrl-diameter',           'circleDiameter',     0],
+    ['ctrl-img-preset-opacity',  'imagePresetOpacity',  2],
     ['ctrl-circle-sp-x',        'circleSpacingX',     0],
     ['ctrl-circle-sp-y',        'circleSpacingY',     0],
     ['ctrl-circle-text-padding','circleTextPadding',  0],

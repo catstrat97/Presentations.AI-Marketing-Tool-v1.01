@@ -327,6 +327,26 @@ html, body {
   font-weight: 500;
 }
 
+/* Image comp card — split thumbnail showing both preset images */
+.comp-card-img svg { display: none; }
+
+.comp-img-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.comp-img-thumb img {
+  width: 50%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* ── Grouping ─────────────────────────────────────────────── */
 .ctrl-group {
   display: none;

@@ -219,6 +219,9 @@ const state = {
   gradientDirection: 'horizontal',
   extent:            0.85,
 
+  // Image composition
+  imagePresetOpacity: 1.0,
+
   theme:       'warm',
   palette:     'marketingWarm',
   paletteMode: 'normal',        // 'normal' | 'symmetrical' | 'sync'

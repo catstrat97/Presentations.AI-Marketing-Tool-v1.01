@@ -496,6 +496,57 @@ function renderCircularComposition(p) {
   }
 }
 
+// ── Background-image preloader ────────────────────────────────
+// Loads the two preset images once at startup. Each onload triggers a
+// redraw so the canvas updates as soon as the file arrives.
+const _bgPresetImages = { dark: null, light: null };
+(function () {
+  const load = (key, src) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      _bgPresetImages[key] = img;
+      if (window._p5Redraw) window._p5Redraw();
+    };
+  };
+  load('dark',  'Background%20Presets/BG-Dark.png');
+  load('light', 'Background%20Presets/BG-Light.png');
+}());
+
+// ── renderImageComposition ────────────────────────────────────
+// Draws BG-Dark on the left half and BG-Light on the right half,
+// each cover-fitted so no letterboxing shows. Opacity is controlled
+// via state.imagePresetOpacity (default 1.0 = 100 %).
+function renderImageComposition(p) {
+  const dc    = p.drawingContext;
+  const alpha = state.imagePresetOpacity;
+  const half  = cw / 2;
+
+  function drawCover(img, x, y, w, h) {
+    if (!img) {
+      // Placeholder while image is loading
+      dc.fillStyle = `rgba(60,60,70,${alpha})`;
+      dc.fillRect(x, y, w, h);
+      return;
+    }
+    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+    const sw    = img.naturalWidth  * scale;
+    const sh    = img.naturalHeight * scale;
+    const ox    = x + (w - sw) / 2;
+    const oy    = y + (h - sh) / 2;
+    dc.save();
+    dc.globalAlpha = alpha;
+    dc.beginPath();
+    dc.rect(x, y, w, h);
+    dc.clip();
+    dc.drawImage(img, ox, oy, sw, sh);
+    dc.restore();
+  }
+
+  drawCover(_bgPresetImages.dark,  0,    0, half, ch);
+  drawCover(_bgPresetImages.light, half, 0, half, ch);
+}
+
 // ── p5 Instance ──────────────────────────────────────────────
 const sketch = function(p) {
   p.setup = function() {
@@ -509,7 +560,10 @@ const sketch = function(p) {
     renderBackground(p);
 
     if (state.showGraphics) {
-      if (state.globalOpacity) {
+      if (state.compositionType === 'image') {
+        // Image composition handles its own opacity internally — bypass globalOpacity buffer
+        renderImageComposition(p);
+      } else if (state.globalOpacity) {
         // Off-screen buffer: render at full alpha, then composite with opacity
         if (!window._pg || window._pg.width !== cw || window._pg.height !== ch) {
           if (window._pg) window._pg.remove();
