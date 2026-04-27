@@ -398,6 +398,12 @@ function renderCircularComposition(p) {
   //                                   larger circles bleed beyond it.
   const refR = state.circleFlipAnchor ? minR : maxR;
 
+  // ── Gradient direction for this composition ───────────────────
+  // Mirrors in the opposite axis must flip the gradient so the reflected
+  // copy looks like a true mirror image rather than a repeat.
+  // Direction matches what computeRectFill derives from baseline.
+  const circGradDir = (state.baseline === 'left' || state.baseline === 'right') ? 'horizontal' : 'vertical';
+
   // ── Anchor centre ─────────────────────────────────────────────
   let anchorX = cw / 2, anchorY = ch / 2;
 
@@ -416,20 +422,32 @@ function renderCircularComposition(p) {
   if      (align.includes('top'))    anchorY = refR;
   else if (align.includes('bottom')) anchorY = ch - refR;
 
+  // ── Mirror mode: move anchor so largest circles just touch at centre ──
+  // Without this, large circles with a central anchor can overlap their
+  // reflected copies. The rule: anchor the largest circle so its inner edge
+  // is exactly at the canvas midline (spacing = 0), then let circleSpacingX/Y
+  // add gap naturally via the direction-based offset in moveAndDraw.
+  if (state.circleMirrorXY) {
+    if      (align.includes('bottom')) anchorY = ch / 2 + maxR;
+    else if (align.includes('top'))    anchorY = ch / 2 - maxR;
+    if      (align.includes('right'))  anchorX = cw / 2 + maxR;
+    else if (align.includes('left'))   anchorX = cw / 2 - maxR;
+  }
+
   // ── Stagger ───────────────────────────────────────────────────
+  // Auto mode: stagger = diameter ÷ 2.68656 (fixed visual ratio).
+  // Manual mode: use state.circleStagger directly.
   // Each circle is offset from the anchor toward the canvas centre by
   // (fillT × effectiveStagger).  fillT = 0 → largest at anchor;
   // fillT = 1 → smallest furthest inward.
-  //
-  // Direction is always from the anchor toward the canvas midpoint,
-  // so the composition fans inward regardless of which anchor is chosen.
   const staggerDirX = Math.sign(cw / 2 - anchorX);
   const staggerDirY = Math.sign(ch / 2 - anchorY);
 
   // Mirror-mode guard: cap stagger so no circle crosses the canvas midpoint,
   // guaranteeing the two reflected groups never overlap.
-  // (circles may still bleed outside the canvas — size is never deformed.)
-  let effectiveStagger = state.circleStagger;
+  let effectiveStagger = state.circleStaggerAuto
+    ? state.circleDiameter / 2.68656
+    : state.circleStagger;
   if (state.circleMirrorXY && effectiveStagger > 0) {
     if (staggerDirX !== 0)
       effectiveStagger = Math.min(effectiveStagger, Math.max(0, Math.abs(anchorX - cw / 2)));
@@ -446,32 +464,34 @@ function renderCircularComposition(p) {
     const cx = anchorX + staggerDirX * effectiveStagger * fillT;
     const cy = anchorY + staggerDirY * effectiveStagger * fillT;
 
-    function moveAndDraw(px, py, flipX = false) {
+    // isHMirror / isVMirror drive gradient flip so the reflected copy is a
+    // true mirror image. For a horizontal gradient, flipping H reverses it;
+    // for a vertical gradient, flipping V reverses it.
+    function moveAndDraw(px, py, isHMirror = false, isVMirror = false) {
       const vx = px - cw / 2, vy = py - ch / 2;
       const dx = Math.abs(vx) < 0.5 ? 0 : Math.sign(vx);
       const dy = Math.abs(vy) < 0.5 ? 0 : Math.sign(vy);
       const finalX = px + dx * state.circleSpacingX;
       const finalY = py + dy * state.circleSpacingY;
 
-      const alpha   = state.opacity;
-      const fill    = computeRectFill(dc, fillT, finalX - R, finalY - R, currentD, currentD, alpha, flipX);
-      const fillRgb = state.innerGlow ? extractFillRgb(fillT, flipX) : null;
+      const gradFlip = circGradDir === 'horizontal' ? isHMirror : isVMirror;
+      const alpha    = state.opacity;
+      const fill     = computeRectFill(dc, fillT, finalX - R, finalY - R, currentD, currentD, alpha, gradFlip);
+      const fillRgb  = state.innerGlow ? extractFillRgb(fillT, gradFlip) : null;
       renderCircle(p, finalX, finalY, R, fill, fillRgb);
     }
 
-    moveAndDraw(cx, cy, false);
+    moveAndDraw(cx, cy, false, false);
 
     if (state.circleMirrorXY) {
       // Reflect the staggered (cx, cy) around the canvas midpoint.
-      // Because stagger is capped above, the reflected group cascades
-      // symmetrically from the opposite edge with no overlap.
       const mx = cw - cx;
       const my = ch - cy;
       const notCenterH = Math.abs(cx - cw / 2) > 0.5;
       const notCenterV = Math.abs(cy - ch / 2) > 0.5;
-      if (notCenterH)               moveAndDraw(mx, cy, true);
-      if (notCenterV)               moveAndDraw(cx, my, false);
-      if (notCenterH && notCenterV) moveAndDraw(mx, my, true);
+      if (notCenterH)               moveAndDraw(mx, cy, true,  false);
+      if (notCenterV)               moveAndDraw(cx, my, false, true);
+      if (notCenterH && notCenterV) moveAndDraw(mx, my, true,  true);
     }
   }
 }

@@ -208,9 +208,10 @@ const state = {
   circleMirrorXY:   false,
   circleSpacingX:   0,
   circleSpacingY:   0,
-  circleFlipAnchor: false,
-  circleStagger:    0,
-  circleTextLink:   false,
+  circleFlipAnchor:    false,
+  circleStagger:       0,
+  circleStaggerAuto:   true,
+  circleTextLink:      false,
   circleTextPadding: 0,
   noiseSeed:        42,
 
