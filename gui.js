@@ -1391,8 +1391,8 @@ function buildGUI() {
   cardRect.innerHTML = `<svg viewBox="0 0 24 24"><rect x="5" y="6" width="3" height="12" rx="1"/><rect x="10.5" y="3" width="3" height="15" rx="1"/><rect x="16" y="8" width="3" height="10" rx="1"/></svg><span>Rectangle</span>`;
   const cardCirc = document.createElement('div'); cardCirc.className = 'comp-card' + (state.compositionType==='circular'?' active':'');
   cardCirc.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="6" cy="14" r="3.5"/><circle cx="12" cy="7" r="3.5"/><circle cx="18" cy="11" r="3.5"/></svg><span>Circular</span>`;
-  const cardImg  = document.createElement('div'); cardImg.className = 'comp-card comp-card-img' + (state.compositionType==='image'?' active':'');
-  cardImg.innerHTML = `<div class="comp-img-thumb"><img src="Background%20Presets/BG-Dark.png" alt="Dark"><img src="Background%20Presets/BG-Light.png" alt="Light"></div><span>Image</span>`;
+  const cardImg  = document.createElement('div'); cardImg.className = 'comp-card' + (state.compositionType==='image'?' active':'');
+  cardImg.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M3 16l4.5-4.5 3 3 3-4 4.5 5.5"/></svg><span>Image</span>`;
   cards.appendChild(cardRect); cards.appendChild(cardCirc); cards.appendChild(cardImg);
   graphSec.content.appendChild(cards);
 
@@ -1435,8 +1435,34 @@ function buildGUI() {
   groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
   groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
 
-  // Image Group — minimal: just an opacity control
+  // Image Group — preset picker + opacity
   const groupImg = document.createElement('div'); groupImg.id = 'group-img-comp'; groupImg.className = 'ctrl-group' + (state.compositionType==='image'?' active':'');
+
+  // Preset picker: two image thumbnails
+  const imgPickerRow = document.createElement('div'); imgPickerRow.className = 'control-row';
+  const imgPickerLabel = document.createElement('label'); imgPickerLabel.textContent = 'Preset';
+  const imgPickerWrap = document.createElement('div'); imgPickerWrap.className = 'img-preset-picker';
+
+  [['dark', 'Background%20Presets/BG-Dark.png', 'Dark'], ['light', 'Background%20Presets/BG-Light.png', 'Light']].forEach(([key, src, label]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'img-preset-btn' + (state.imagePresetSelected === key ? ' active' : '');
+    btn.title = label;
+    btn.dataset.key = key;
+    const thumb = document.createElement('img');
+    thumb.src = src; thumb.alt = label;
+    btn.appendChild(thumb);
+    btn.addEventListener('click', () => {
+      state.imagePresetSelected = key;
+      imgPickerWrap.querySelectorAll('.img-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.key === key));
+      if (window._p5Redraw) window._p5Redraw();
+    });
+    imgPickerWrap.appendChild(btn);
+  });
+
+  imgPickerRow.appendChild(imgPickerLabel);
+  imgPickerRow.appendChild(imgPickerWrap);
+  groupImg.appendChild(imgPickerRow);
   groupImg.appendChild(mkSlider({ id:'ctrl-img-preset-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'imagePresetOpacity', decimals:2 }));
 
   graphSec.content.appendChild(groupRect);

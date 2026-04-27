@@ -514,37 +514,30 @@ const _bgPresetImages = { dark: null, light: null };
 }());
 
 // ── renderImageComposition ────────────────────────────────────
-// Draws BG-Dark on the left half and BG-Light on the right half,
-// each cover-fitted so no letterboxing shows. Opacity is controlled
-// via state.imagePresetOpacity (default 1.0 = 100 %).
+// Draws the selected preset image cover-fitted to the full canvas.
+// Opacity is controlled via state.imagePresetOpacity (default 1.0).
 function renderImageComposition(p) {
   const dc    = p.drawingContext;
   const alpha = state.imagePresetOpacity;
-  const half  = cw / 2;
+  const img   = _bgPresetImages[state.imagePresetSelected] || null;
 
-  function drawCover(img, x, y, w, h) {
-    if (!img) {
-      // Placeholder while image is loading
-      dc.fillStyle = `rgba(60,60,70,${alpha})`;
-      dc.fillRect(x, y, w, h);
-      return;
-    }
-    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-    const sw    = img.naturalWidth  * scale;
-    const sh    = img.naturalHeight * scale;
-    const ox    = x + (w - sw) / 2;
-    const oy    = y + (h - sh) / 2;
-    dc.save();
-    dc.globalAlpha = alpha;
-    dc.beginPath();
-    dc.rect(x, y, w, h);
-    dc.clip();
-    dc.drawImage(img, ox, oy, sw, sh);
-    dc.restore();
+  if (!img) {
+    // Placeholder while image is loading
+    dc.fillStyle = `rgba(60,60,70,${alpha})`;
+    dc.fillRect(0, 0, cw, ch);
+    return;
   }
 
-  drawCover(_bgPresetImages.dark,  0,    0, half, ch);
-  drawCover(_bgPresetImages.light, half, 0, half, ch);
+  const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+  const sw    = img.naturalWidth  * scale;
+  const sh    = img.naturalHeight * scale;
+  const ox    = (cw - sw) / 2;
+  const oy    = (ch - sh) / 2;
+
+  dc.save();
+  dc.globalAlpha = alpha;
+  dc.drawImage(img, ox, oy, sw, sh);
+  dc.restore();
 }
 
 // ── p5 Instance ──────────────────────────────────────────────

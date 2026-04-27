@@ -221,6 +221,7 @@ const state = {
 
   // Image composition
   imagePresetOpacity: 1.0,
+  imagePresetSelected: 'dark',   // 'dark' | 'light'
 
   theme:       'warm',
   palette:     'marketingWarm',
