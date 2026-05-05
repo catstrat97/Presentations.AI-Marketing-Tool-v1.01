@@ -279,11 +279,14 @@ function updateOverlays() {
     // Fill mode: box anchored to canvas top with internal top/bottom padding.
     // 112 Figma-px → 214 design-units; 105 Figma-px → 201 design-units.
     if (state.headlineFillEnabled) {
+      // Opaque fill box behind the text. Padding is per-aspect (dynamic).
       const [fr, fg, fb] = hexToRgb(state.headlineFillColor || '#000000');
+      const padTop = state.headlineFillPaddingTop    ?? 214;
+      const padBot = state.headlineFillPaddingBottom ?? 201;
       overlayHead.style.top           = '0';
-      overlayHead.style.paddingTop    = `calc(214px * var(--scale))`;
-      overlayHead.style.paddingBottom = `calc(201px * var(--scale))`;
-      overlayHead.style.background    = `rgba(${fr},${fg},${fb},${state.headlineFillOpacity})`;
+      overlayHead.style.paddingTop    = `calc(${padTop}px * var(--scale))`;
+      overlayHead.style.paddingBottom = `calc(${padBot}px * var(--scale))`;
+      overlayHead.style.background    = `rgb(${fr},${fg},${fb})`;
     } else {
       overlayHead.style.top           = `calc(${state.headlineYPos}px * var(--scale))`;
       overlayHead.style.paddingTop    = '0';
@@ -346,12 +349,36 @@ function renderGradientBar() {
   const markers = document.getElementById('grad-markers');
   if (markers) {
     markers.innerHTML = '';
-    [...state.gradientStops].sort((a,b) => a.stop - b.stop).forEach(s => {
-      const m = document.createElement('div');
-      m.className = 'grad-marker';
-      m.style.left = `calc(${s.stop*100}% - 7px)`;
-      m.style.borderBottomColor = s.color;
-      markers.appendChild(m);
+    const sorted = [...state.gradientStops].sort((a,b) => a.stop - b.stop);
+    sorted.forEach(s => {
+      const dot = document.createElement('div');
+      dot.className = 'grad-stop-dot';
+      dot.style.left = `${s.stop * 100}%`;
+      dot.style.background = s.color;
+      dot.title = 'Click to recolor';
+      dot.dataset.stopRef = String(state.gradientStops.indexOf(s));
+
+      // Hidden color input — click the dot to recolor
+      const colorInp = document.createElement('input');
+      colorInp.type = 'color';
+      colorInp.value = s.color;
+      colorInp.className = 'grad-stop-color-hidden';
+      dot.appendChild(colorInp);
+
+      colorInp.addEventListener('input', () => {
+        const idx = +dot.dataset.stopRef;
+        if (idx < 0 || idx >= state.gradientStops.length) return;
+        state.gradientStops[idx].color = colorInp.value;
+        const mode = state.paletteMode || 'normal';
+        if (mode === 'symmetrical') enforceSymmetrical();
+        else if (mode === 'sync')   enforceSync();
+        renderGradientBar();
+        if (window._p5Redraw) window._p5Redraw();
+      });
+
+      dot.addEventListener('click', () => colorInp.click());
+
+      markers.appendChild(dot);
     });
   }
 }
@@ -415,6 +442,13 @@ function shuffleGradient() {
     state.gradientStops[0].color = colors[i0];       // lighter
     state.gradientStops[1].color = colors[Math.min(n - 1, i1)]; // darker
     enforceSync();
+  } else {
+    // Normal mode — give each stop a fresh random colour from the palette,
+    // preserving existing stop positions
+    state.gradientStops.forEach(s => {
+      s.color = colors[Math.floor(Math.random() * n)];
+    });
+    state.palette = state.palette; // keep palette ref intact (no 'custom' switch — colours still come from it)
   }
 
   renderGradientBar();
@@ -580,14 +614,18 @@ function syncTheme() {
       b.classList.toggle('active', b.dataset.mode === (state.colorMode || 'dark')));
   }
 
-  // Show only BG gradient presets that match the active theme
+  // Show only BG gradient presets that match the active theme + color mode
   const gradRow = document.getElementById('bg-grad-container');
   if (gradRow) {
+    const activeMode = state.colorMode || 'dark';
     gradRow.querySelectorAll('.bg-grad-btn').forEach(btn => {
       const key = btn.dataset.key;
       if (key === 'none') return; // always visible
-      const bgTheme = BG_GRADIENTS[key]?.theme;
-      btn.style.display = (!bgTheme || bgTheme === state.theme) ? '' : 'none';
+      const def = BG_GRADIENTS[key];
+      if (!def) { btn.style.display = ''; return; }
+      const themeOk = !def.theme || def.theme === state.theme;
+      const modeOk  = !def.mode  || def.mode  === activeMode;
+      btn.style.display = (themeOk && modeOk) ? '' : 'none';
     });
   }
 
@@ -619,37 +657,65 @@ function selectPalette(key) {
 // (Theme toggle and palette swatches now live in buildColorThemeSection)
 // ══════════════════════════════════════════════════════════════
 function buildGradientSection(sec) {
-  // ── Palette mode selector ─────────────────────────────────
+  // 0. Stops Mode segmented (Normal | Symmetrical | Sync) — sits above the bar
   sec.appendChild(mkSegmented({
-    id: 'ctrl-palette-mode', label: 'Mode', key: 'paletteMode',
+    id: 'ctrl-palette-mode', label: '', key: 'paletteMode',
     options: [['normal', 'Normal'], ['symmetrical', 'Symmetrical'], ['sync', 'Sync']],
     onChange: (v) => {
       state.paletteMode = v;
       if (v === 'symmetrical') enforceSymmetrical();
       else if (v === 'sync')   enforceSync();
       renderGradientBar();
-      renderStopList();
       redraw();
     },
   }));
 
-  sec.appendChild(mkToggle({
-    id: 'ctrl-bar-flip-grad', label: 'Flip Bar Gradient', key: 'barFlipGradient',
-    onChange: () => redraw(),
-  }));
-
+  // 1. Gradient Bar
   const barOuter = document.createElement('div'); barOuter.className = 'grad-bar-outer';
-  const bar = document.createElement('canvas'); bar.id = 'grad-bar'; bar.width = 260; bar.height = 28;
-  const markers = document.createElement('div'); markers.id = 'grad-markers'; markers.className = 'grad-markers';
+  const bar      = document.createElement('canvas'); bar.id = 'grad-bar'; bar.width = 280; bar.height = 40;
+  const markers  = document.createElement('div'); markers.id = 'grad-markers'; markers.className = 'grad-markers';
   barOuter.appendChild(bar); barOuter.appendChild(markers);
   sec.appendChild(barOuter);
 
-  // Shuffle row — visible in symmetrical / sync modes only
-  const shuffleRow = document.createElement('div'); shuffleRow.className = 'grad-actions'; shuffleRow.id = 'grad-shuffle-row'; shuffleRow.style.display = 'none';
-  const shuffleBtn = document.createElement('button'); shuffleBtn.className = 'btn small'; shuffleBtn.id = 'btn-shuffle-stops'; shuffleBtn.textContent = '⟳ Shuffle Colours';
+  // 2 & 3 — Flip + Shuffle action row (matching button styles)
+  const actions = document.createElement('div');
+  actions.className = 'grad-action-row';
+  actions.id = 'grad-shuffle-row';
+
+  // Flip Gradient button (replaces the toggle)
+  const flipBtn = document.createElement('button');
+  flipBtn.type = 'button';
+  flipBtn.className = 'grad-action-btn' + (state.barFlipGradient ? ' active' : '');
+  flipBtn.id = 'ctrl-bar-flip-grad-btn';
+  flipBtn.title = 'Flip gradient direction';
+  flipBtn.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 5h8l-2-2"/><path d="M13 11H5l2 2"/>
+    </svg>
+    <span>Flip</span>`;
+  flipBtn.addEventListener('click', () => {
+    state.barFlipGradient = !state.barFlipGradient;
+    flipBtn.classList.toggle('active', state.barFlipGradient);
+    redraw();
+  });
+  actions.appendChild(flipBtn);
+
+  // Shuffle Stops button
+  const shuffleBtn = document.createElement('button');
+  shuffleBtn.type = 'button';
+  shuffleBtn.className = 'grad-action-btn';
+  shuffleBtn.id = 'btn-shuffle-stops';
+  shuffleBtn.title = 'Shuffle gradient stops';
+  shuffleBtn.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 4h3l3 8h3"/><path d="M2 12h3l3-8h3"/>
+      <path d="M11 2l3 2-3 2"/><path d="M11 10l3 2-3 2"/>
+    </svg>
+    <span>Shuffle</span>`;
   shuffleBtn.addEventListener('click', shuffleGradient);
-  shuffleRow.appendChild(shuffleBtn);
-  sec.appendChild(shuffleRow);
+  actions.appendChild(shuffleBtn);
+
+  sec.appendChild(actions);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -783,9 +849,11 @@ function mkToggle({ id, label, key, onChange }) {
 
 // options: [value, labelOrHtml, title?]. If labelOrHtml contains '<' it is treated as HTML.
 function mkSegmented({ id, label, key, options, onChange, variant }) {
-  const wrap = document.createElement('div'); wrap.className = 'control-row';
-  const lbl  = document.createElement('label'); lbl.textContent = label;
-  wrap.appendChild(lbl);
+  const wrap = document.createElement('div'); wrap.className = 'control-row' + (label ? '' : ' no-label');
+  if (label) {
+    const lbl  = document.createElement('label'); lbl.textContent = label;
+    wrap.appendChild(lbl);
+  }
   const seg  = document.createElement('div'); seg.className = 'segmented' + (variant ? ' ' + variant : ''); seg.id = id;
   options.forEach(([value, content, title]) => {
     const btn = document.createElement('button');
@@ -1030,72 +1098,103 @@ function buildBgPresetsUI(sec) {
 // IMAGE PRESET + DISTRIBUTION CONTROLS
 // ══════════════════════════════════════════════════════════════
 function buildImagePresetControls(sec) {
-  // Style thumbnail picker
-  const styleWrap = document.createElement('div'); styleWrap.className = 'control-row';
-  const styleLbl  = document.createElement('label'); styleLbl.textContent = 'Style';
-  styleWrap.appendChild(styleLbl);
-  const styleRow = document.createElement('div'); styleRow.className = 'img-style-row'; styleRow.id = 'ctrl-img-style';
-  Object.entries(IMAGE_STYLES).forEach(([key, list]) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'img-thumb' + (state.imageStyle === key ? ' active' : '');
-    btn.dataset.value = key;
-    btn.title = key.replace('style', 'Style ');
-    const im = document.createElement('img');
-    im.src = list[0] || '';
-    im.alt = key;
-    im.loading = 'lazy';
-    btn.appendChild(im);
-    btn.addEventListener('click', () => {
-      state.imageStyle = key;
+  // ── Style tabs (compact chip row) ─────────────────────────
+  const styleTabs = document.createElement('div');
+  styleTabs.className = 'img-style-tabs';
+  styleTabs.id = 'ctrl-img-style';
+
+  Object.keys(IMAGE_STYLES).forEach((key, idx) => {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'img-style-tab' + (state.imageStyle === key ? ' active' : '');
+    tab.dataset.value = key;
+    tab.textContent = String(idx + 1);
+    tab.title = `Style ${idx + 1}`;
+    tab.addEventListener('click', () => {
+      state.imageStyle      = key;
       state.imageStyleIndex = 0;
       state.imageStyleOrder = null;
-      styleRow.querySelectorAll('.img-thumb').forEach(b => b.classList.toggle('active', b.dataset.value === key));
-      rebuildImgGrid();
+      styleTabs.querySelectorAll('.img-style-tab').forEach(b => b.classList.toggle('active', b.dataset.value === key));
+      rebuildGallery();
       applySelectedImage();
       updateOverlays();
     });
-    styleRow.appendChild(btn);
+    styleTabs.appendChild(tab);
   });
-  styleWrap.appendChild(styleRow);
-  sec.appendChild(styleWrap);
+  sec.appendChild(styleTabs);
 
-  // Image thumbnail grid within the chosen style
-  const imgWrap = document.createElement('div'); imgWrap.className = 'control-row';
-  const imgLbl  = document.createElement('label'); imgLbl.textContent = 'Image';
-  imgWrap.appendChild(imgLbl);
-  const imgGrid = document.createElement('div'); imgGrid.className = 'img-idx-grid'; imgGrid.id = 'ctrl-img-idx';
-  imgWrap.appendChild(imgGrid);
-  sec.appendChild(imgWrap);
+  // ── Image gallery (large 2-col thumbs) ────────────────────
+  const gallery = document.createElement('div');
+  gallery.className = 'img-gallery';
+  gallery.id = 'ctrl-img-idx';
+  sec.appendChild(gallery);
 
-  function rebuildImgGrid() {
-    imgGrid.innerHTML = '';
+  function rebuildGallery() {
+    gallery.innerHTML = '';
     const imgs = IMAGE_STYLES[state.imageStyle] || [];
+    if (imgs.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'img-gallery-empty';
+      empty.textContent = 'No images in this style';
+      gallery.appendChild(empty);
+      return;
+    }
     imgs.forEach((path, i) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'img-thumb' + (state.imageStyleIndex === i ? ' active' : '');
-      btn.dataset.value = String(i);
-      btn.title = path.split('/').pop().replace(/\.png$/i, '');
-      const im = document.createElement('img'); im.src = path; im.alt = btn.title; im.loading = 'lazy';
-      btn.appendChild(im);
-      btn.addEventListener('click', () => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'img-gallery-card' + (state.imageStyleIndex === i ? ' active' : '');
+      card.dataset.value = String(i);
+      card.title = path.split('/').pop().replace(/\.png$/i, '');
+      const im = document.createElement('img');
+      im.src = path; im.alt = card.title; im.loading = 'lazy';
+      card.appendChild(im);
+      card.addEventListener('click', () => {
         state.imageStyleIndex = i;
         applySelectedImage();
-        imgGrid.querySelectorAll('.img-thumb').forEach(b => b.classList.toggle('active', parseInt(b.dataset.value, 10) === i));
+        gallery.querySelectorAll('.img-gallery-card').forEach(b => b.classList.toggle('active', parseInt(b.dataset.value, 10) === i));
         updateOverlays();
       });
-      imgGrid.appendChild(btn);
+      gallery.appendChild(card);
     });
   }
-  rebuildImgGrid();
+  rebuildGallery();
 
-  // Shuffle button — full width
-  const shuffleRow = document.createElement('div'); shuffleRow.className = 'control-row';
-  const shuffleBtn = document.createElement('button'); shuffleBtn.className = 'btn small'; shuffleBtn.id = 'btn-shuffle-imgs';
-  shuffleBtn.textContent = '⇄ Shuffle Images'; shuffleBtn.style.width = '100%';
-  shuffleBtn.addEventListener('click', () => { shuffleStyleImages(); updateImageDistribution(); });
-  shuffleRow.appendChild(shuffleBtn); sec.appendChild(shuffleRow);
+  // ── Shuffle button (matches other action buttons) ────────
+  const shuffleRow = document.createElement('div'); shuffleRow.className = 'control-row no-label';
+  const shuffleBtn = document.createElement('button');
+  shuffleBtn.type = 'button';
+  shuffleBtn.id   = 'btn-shuffle-imgs';
+  shuffleBtn.className = 'grad-action-btn';
+  shuffleBtn.title = 'Randomise the image order';
+  shuffleBtn.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 4h3l3 8h3"/><path d="M2 12h3l3-8h3"/>
+      <path d="M11 2l3 2-3 2"/><path d="M11 10l3 2-3 2"/>
+    </svg>
+    <span>Shuffle</span>`;
+  shuffleBtn.addEventListener('click', () => {
+    const imgs = IMAGE_STYLES[state.imageStyle] || [];
+    if (imgs.length > 1) {
+      // Pick a different random image from the gallery
+      let next = state.imageStyleIndex;
+      while (next === state.imageStyleIndex) {
+        next = Math.floor(Math.random() * imgs.length);
+      }
+      state.imageStyleIndex = next;
+    } else if (imgs.length === 1) {
+      state.imageStyleIndex = 0;
+    }
+    applySelectedImage();
+    // Also re-shuffle the multi-instance order
+    shuffleStyleImages();
+    // Refresh active state on the gallery cards
+    gallery.querySelectorAll('.img-gallery-card').forEach(b =>
+      b.classList.toggle('active', parseInt(b.dataset.value, 10) === state.imageStyleIndex));
+    updateImageDistribution();
+    updateOverlays();
+  });
+  shuffleRow.appendChild(shuffleBtn);
+  sec.appendChild(shuffleRow);
 }
 
 function applySelectedImage() {
@@ -1156,8 +1255,8 @@ function _savePresetsStore(list) {
   } catch { /* ignore */ }
 })();
 
-function buildPresetsSection(container) {
-  const { sec, content } = mkSection('Presets');
+// Builds presets controls into a Tweakpane folder content area
+function buildPresetsContent(content) {
 
   // ── Save row ────────────────────────────────────────────────
   const saveRow = document.createElement('div');
@@ -1260,7 +1359,6 @@ function buildPresetsSection(container) {
   }
 
   renderList();
-  container.appendChild(sec);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1718,9 +1816,6 @@ function _syncBgGradBtnsInner(gradRow) {
 function buildGUI() {
   const scroll = document.getElementById('panel-scroll');
 
-  // ── Presets (above Tweakpane pane) ────────────────────────
-  buildPresetsSection(scroll);
-
   // ── Tweakpane pane ────────────────────────────────────────
   const pane = new Tweakpane.Pane({ container: scroll });
   window._pane = pane;
@@ -1743,8 +1838,19 @@ function buildGUI() {
     cnt.appendChild(el);
   }
 
+  // Track all folders for accordion behaviour
+  const allFolders = [];
+  function registerFolder(f) { allFolders.push(f); return f; }
+
+  // ── Presets (now a collapsible folder) ────────────────────
+  const fPresets = registerFolder(pane.addFolder({ title: 'Presets', expanded: false }));
+  into(fPresets, ct => {
+    ct.classList.add('section-presets');
+    buildPresetsContent(ct);
+  });
+
   // ── Canvas ────────────────────────────────────────────────
-  const fCanvas = pane.addFolder({ title: 'Canvas', expanded: false });
+  const fCanvas = registerFolder(pane.addFolder({ title: 'Canvas', expanded: false }));
   into(fCanvas, ct => {
     ct.appendChild(mkSegmented({
       id: 'ctrl-aspect', label: 'Aspect Ratio', key: 'aspectRatio',
@@ -1765,8 +1871,9 @@ function buildGUI() {
   });
 
   // ── Color & Theme ─────────────────────────────────────────
-  const fTheme = pane.addFolder({ title: 'Color & Theme', expanded: false });
+  const fTheme = registerFolder(pane.addFolder({ title: 'Color & Theme', expanded: false }));
   into(fTheme, ct => {
+    ct.classList.add('section-color-theme');
     // Theme label
     const themeLbl = document.createElement('div');
     themeLbl.className = 'theme-section-label';
@@ -1791,10 +1898,8 @@ function buildGUI() {
     });
     ct.appendChild(circleRow);
 
-    // Light / Dark mode segmented
-    const modeRow = document.createElement('div'); modeRow.className = 'control-row';
-    const modeLbl = document.createElement('label'); modeLbl.textContent = 'Mode';
-    modeRow.appendChild(modeLbl);
+    // Light / Dark mode segmented (no label — higher hierarchy)
+    const modeRow = document.createElement('div'); modeRow.className = 'control-row mode-row-noLabel';
     const modeSeg = document.createElement('div'); modeSeg.className = 'segmented'; modeSeg.id = 'ct-mode-col';
     [['dark', 'Dark'], ['light', 'Light']].forEach(([val, label]) => {
       const btn = document.createElement('button');
@@ -1853,7 +1958,7 @@ function buildGUI() {
     // Background
     ct.appendChild(mkSubLabel('Background'));
     ct.appendChild(mkSegmented({
-      id: 'ctrl-bg-mode', label: 'BG Type', key: 'bgGradientMode',
+      id: 'ctrl-bg-mode', label: '', key: 'bgGradientMode',
       options: [['solid', 'Solid'], ['gradient', 'Gradient']],
       onChange: v => {
         state.bgGradientMode = (v === 'gradient');
@@ -1904,10 +2009,10 @@ function buildGUI() {
     rebuildBgSwatches();
   });
 
-  // ── Graphics ──────────────────────────────────────────────
-  const fGraphics = pane.addFolder({ title: 'Graphics', expanded: false });
+  // ── Composition ──────────────────────────────────────────
+  const fGraphics = registerFolder(pane.addFolder({ title: 'Composition', expanded: false }));
   into(fGraphics, ct => {
-    ct.appendChild(mkSubLabel('Composition Setup', 0));
+    ct.classList.add('section-composition');
 
     const cards    = document.createElement('div'); cards.className = 'comp-cards';
     const cardRect = document.createElement('div');
@@ -1946,10 +2051,10 @@ function buildGUI() {
     groupCirc.className = 'ctrl-group' + (state.compositionType === 'circular' ? ' active' : '');
     groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',        label:'Circle Count',                      min:2,    max:40,   step:1,  key:'circleCount' }));
     groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',            label:'Max Diameter',                      min:50,   max:2000, step:10, key:'circleDiameter' }));
-    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-stagger-auto', label:'Auto Stagger (diameter ÷ 2.69)',    key:'circleStaggerAuto' }));
+    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-stagger-auto', label:'Auto Stagger',                       key:'circleStaggerAuto' }));
     groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align',    label:'Anchor Position',                   key:'circleAlignment' }));
     groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',       label:'Mirror X & Y Axis',                 key:'circleMirrorXY' }));
-    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor',  label:'Flip Anchor — smallest at boundary',key:'circleFlipAnchor' }));
+    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor',  label:'Flip Anchor',                       key:'circleFlipAnchor' }));
     groupCirc.appendChild(mkSubLabel('Text-Aware Positioning'));
     groupCirc.appendChild(mkToggle({
       id: 'ctrl-circle-text-link', label: 'Link X to Headline', key: 'circleTextLink',
@@ -2005,10 +2110,18 @@ function buildGUI() {
     noiseSeedRow.style.display = state.curveType === 'noise' ? '' : 'none';
 
     const reseedRow = document.createElement('div');
-    reseedRow.id = 'noise-reseed-row'; reseedRow.className = 'control-row';
+    reseedRow.id = 'noise-reseed-row'; reseedRow.className = 'control-row no-label';
     reseedRow.style.display = state.curveType === 'noise' ? '' : 'none';
     const reseedBtn = document.createElement('button');
-    reseedBtn.type = 'button'; reseedBtn.className = 'ctrl-btn'; reseedBtn.textContent = '⟳  New Seed';
+    reseedBtn.type = 'button';
+    reseedBtn.className = 'grad-action-btn';
+    reseedBtn.title = 'Generate a new noise seed';
+    reseedBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 4h3l3 8h3"/><path d="M2 12h3l3-8h3"/>
+        <path d="M11 2l3 2-3 2"/><path d="M11 10l3 2-3 2"/>
+      </svg>
+      <span>New Seed</span>`;
     reseedBtn.addEventListener('click', () => {
       state.noiseSeed = Math.floor(Math.random() * 999) + 1;
       const sl = document.getElementById('ctrl-noise-seed');
@@ -2017,8 +2130,9 @@ function buildGUI() {
     });
     reseedRow.appendChild(reseedBtn);
 
+    curveWrap.appendChild(mkSubLabel('Curve Distribution'));
     curveWrap.appendChild(mkSegmented({
-      id: 'ctrl-curve', label: 'Curve Distribution', key: 'curveType', variant: 'grid grid-4',
+      id: 'ctrl-curve', label: '', key: 'curveType', variant: 'grid grid-4',
       options: [
         ['flat',       curveThumbSvg('flat'),       'Flat'],
         ['linear',     curveThumbSvg('linear'),     'Linear'],
@@ -2040,10 +2154,10 @@ function buildGUI() {
     curveWrap.appendChild(reseedRow);
     curveWrap.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
 
-    const cvWrap = document.createElement('div'); cvWrap.className = 'control-row';
-    const cvLbl  = document.createElement('label'); cvLbl.textContent = 'Curve Preview';
-    const cvCvs  = document.createElement('canvas'); cvCvs.id = 'curve-preview'; cvCvs.width = 260; cvCvs.height = 60;
-    cvWrap.appendChild(cvLbl); cvWrap.appendChild(cvCvs);
+    // Curve preview — no label, just the canvas
+    const cvWrap = document.createElement('div'); cvWrap.className = 'control-row no-label curve-preview-wrap';
+    const cvCvs  = document.createElement('canvas'); cvCvs.id = 'curve-preview'; cvCvs.width = 280; cvCvs.height = 56;
+    cvWrap.appendChild(cvCvs);
     curveWrap.appendChild(cvWrap);
     ct.appendChild(curveWrap);
 
@@ -2063,89 +2177,154 @@ function buildGUI() {
     cardCirc.addEventListener('click', () => switchType('circular'));
     cardImg.addEventListener('click',  () => switchType('image'));
 
-    // Style
-    ct.appendChild(mkSubLabel('Style'));
-    ct.appendChild(mkToggle({ id:'ctrl-global-op', label:'Global Opacity (Blend Group)', key:'globalOpacity' }));
+    // Composition-only blur control
+    ct.appendChild(mkSlider({ id:'ctrl-blur', label:'Blur', min:0, max:20, step:0.5, key:'blur', decimals:1 }));
+  });
+
+  // ── Graphics (slim: opacity + shadow + inner glow only) ───
+  const fGraphicsFx = registerFolder(pane.addFolder({ title: 'Graphics', expanded: false }));
+  into(fGraphicsFx, ct => {
+    ct.appendChild(mkSubLabel('Global Opacity', 0));
+    ct.appendChild(mkToggle({ id:'ctrl-global-op', label:'Blend as Group', key:'globalOpacity' }));
     ct.appendChild(mkSlider({ id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
       onChange: () => { renderGradientBar(); redraw(); } }));
-    ct.appendChild(mkSlider({ id:'ctrl-blur', label:'Blur (inner)', min:0, max:20, step:0.5, key:'blur', decimals:1 }));
 
-    ct.appendChild(mkSubLabel('Depth & Effects'));
-    ct.appendChild(mkToggle({ id:'ctrl-depth-shadow', label:'Depth Shadow', key:'depthShadow' }));
-    ct.appendChild(mkSlider({ id:'ctrl-ds-spread',    label:'Shadow Spread',   min:0.01, max:1, step:0.01, key:'dsSpread',           decimals:2 }));
-    ct.appendChild(mkSlider({ id:'ctrl-ds-opacity',   label:'Shadow Opacity',  min:0,    max:1, step:0.01, key:'dsOpacity',          decimals:2 }));
-    ct.appendChild(mkToggle({ id:'ctrl-inner-glow',   label:'Inner Glow',      key:'innerGlow' }));
-    ct.appendChild(mkSlider({ id:'ctrl-glow-intensity',label:'Glow Intensity', min:0,    max:1, step:0.01, key:'innerGlowIntensity', decimals:2 }));
+    ct.appendChild(mkSubLabel('Depth Shadow'));
+    ct.appendChild(mkToggle({ id:'ctrl-depth-shadow', label:'Enabled',         key:'depthShadow' }));
+    ct.appendChild(mkSlider({ id:'ctrl-ds-spread',    label:'Spread',          min:0.01, max:1, step:0.01, key:'dsSpread',  decimals:2 }));
+    ct.appendChild(mkSlider({ id:'ctrl-ds-opacity',   label:'Opacity',         min:0,    max:1, step:0.01, key:'dsOpacity', decimals:2 }));
+
+    ct.appendChild(mkSubLabel('Inner Shadow'));
+    ct.appendChild(mkToggle({ id:'ctrl-inner-glow',    label:'Enabled',        key:'innerGlow' }));
+    ct.appendChild(mkSlider({ id:'ctrl-glow-intensity',label:'Intensity',      min:0,    max:1, step:0.01, key:'innerGlowIntensity', decimals:2 }));
   });
 
   // ── Headline ──────────────────────────────────────────────
-  const fHeadline = pane.addFolder({ title: 'Headline', expanded: false });
+  const fHeadline = registerFolder(pane.addFolder({ title: 'Headline', expanded: false }));
   into(fHeadline, ct => {
-    ct.appendChild(mkTextarea({ id:'ctrl-hl-text',    label:'Text',            key:'headlineText',          rows:3, onChange: updateOverlays }));
-    ct.appendChild(mkInput(   { id:'ctrl-hl-words',   label:'Highlight Words', key:'headlineHighlightWords',       onChange: updateOverlays }));
-    ct.appendChild(mkSubLabel('Colours', 8));
+    ct.classList.add('section-headline');
+
+    // ── Text ──────────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Text', 0));
+    ct.appendChild(mkTextarea({ id:'ctrl-hl-text',  label:'',                key:'headlineText',           rows:3, onChange: updateOverlays }));
+    ct.appendChild(mkInput(   { id:'ctrl-hl-words', label:'Highlight Words', key:'headlineHighlightWords',         onChange: updateOverlays }));
+
+    // ── Colour ────────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Colour'));
     ct.appendChild(mkTextBaseControl('hl'));
-    ct.appendChild(mkColor(   { id:'ctrl-hl-hl-color',label:'Highlight Colour',key:'headlineHighlightColor',       onChange: updateOverlays }));
-    ct.appendChild(mkSubLabel('Fill', 8));
-    ct.appendChild(mkToggle(  { id:'ctrl-hl-fill',    label:'Fill Behind Text',key:'headlineFillEnabled',          onChange: updateOverlays }));
-    ct.appendChild(mkColor(   { id:'ctrl-hl-fill-col',label:'Fill Colour',     key:'headlineFillColor',            onChange: updateOverlays }));
-    ct.appendChild(mkSlider(  { id:'ctrl-hl-fill-op', label:'Fill Opacity',    min:0, max:1, step:0.01, key:'headlineFillOpacity', decimals:2, onChange: updateOverlays }));
-    ct.appendChild(mkSubLabel('Typography', 8));
-    ct.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'Font Type',  key:'headlineFont',  options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-    ct.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'Alignment',  key:'headlineAlign',
+    ct.appendChild(mkColor({ id:'ctrl-hl-hl-color', label:'Highlight', key:'headlineHighlightColor', onChange: updateOverlays }));
+
+    // ── Fill ──────────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Fill'));
+    ct.appendChild(mkToggle({ id:'ctrl-hl-fill',     label:'Fill Behind Text', key:'headlineFillEnabled',
+      onChange: () => { state.headlineFillOpacity = 1; updateOverlays(); redraw(); } }));
+    ct.appendChild(mkColor( { id:'ctrl-hl-fill-col', label:'Fill Colour',      key:'headlineFillColor', onChange: updateOverlays }));
+
+    // ── Typography ────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Typography'));
+    ct.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'', key:'headlineAlign',
       options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
       onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-lh',  label:'Line Height', min:0.5,  max:2.5,  step:0.05, key:'headlineLineHeight', decimals:2, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-fs',  label:'Font Size',   min:10,   max:300,  step:1,    key:'headlineFontSize',   decimals:0, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0,    max:1500, step:1,    key:'headlineYPos',       decimals:0, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0,    max:700,  step:1,    key:'headlinePadding',    decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'', key:'headlineFont',
+      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-fs', label:'Font Size',   min:10,  max:300, step:1,    key:'headlineFontSize',   decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-lh', label:'Line Height', min:0.5, max:2.5, step:0.05, key:'headlineLineHeight', decimals:2, onChange: updateOverlays }));
+
+    // ── Position ──────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Position'));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0, max:1500, step:1, key:'headlineYPos',    decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0, max:700,  step:1, key:'headlinePadding', decimals:0, onChange: updateOverlays }));
   });
 
   // ── Image Placeholder ─────────────────────────────────────
-  const fImage = pane.addFolder({ title: 'Image Placeholder', expanded: false });
+  const fImage = registerFolder(pane.addFolder({ title: 'Image Placeholder', expanded: false }));
   into(fImage, ct => {
-    const fileWrap = document.createElement('div'); fileWrap.className = 'control-row';
-    const fileLbl  = document.createElement('label'); fileLbl.textContent = 'Upload Image';
-    const fileInp  = document.createElement('input');
-    fileInp.type = 'file'; fileInp.id = 'ctrl-img-upload'; fileInp.accept = 'image/*'; fileInp.style.width = '100%';
+    ct.classList.add('section-image');
+
+    // ── Upload ────────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Upload', 0));
+    const uploadWrap = document.createElement('div'); uploadWrap.className = 'control-row no-label';
+    const uploadBtn  = document.createElement('label');
+    uploadBtn.className = 'img-upload-btn';
+    uploadBtn.htmlFor   = 'ctrl-img-upload';
+    uploadBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 13v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1"/>
+        <path d="M5 5l3-3 3 3"/><path d="M8 2v9"/>
+      </svg>
+      <span>Choose Image</span>`;
+    const fileInp = document.createElement('input');
+    fileInp.type = 'file'; fileInp.id = 'ctrl-img-upload'; fileInp.accept = 'image/*';
+    fileInp.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
     fileInp.addEventListener('change', e => {
       if (!e.target.files.length) return;
       state.imageSrc = URL.createObjectURL(e.target.files[0]);
       updateOverlays();
     });
-    fileWrap.appendChild(fileLbl); fileWrap.appendChild(fileInp);
-    ct.appendChild(fileWrap);
+    uploadWrap.appendChild(fileInp);
+    uploadWrap.appendChild(uploadBtn);
+    ct.appendChild(uploadWrap);
 
-    ct.appendChild(mkSubLabel('Style Presets', 12));
+    // ── Presets (style + image picker + shuffle) ──────────
+    ct.appendChild(mkSubLabel('Presets'));
     buildImagePresetControls(ct);
-    ct.appendChild(mkSubLabel('Distribution', 12));
-    buildImageDistControls(ct);
-    ct.appendChild(mkSubLabel('Position & Style', 12));
-    ct.appendChild(mkSlider({ id:'ctrl-img-scale', label:'Scale',         min:0.1,   max:2,    step:0.01, key:'imageScale',        decimals:2, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-img-y',     label:'Y-Axis Offset', min:-1500, max:1500, step:10,   key:'imageYOffset',      decimals:0, onChange: updateOverlays }));
+
+    // ── Position ──────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Position'));
+    ct.appendChild(mkSlider({ id:'ctrl-img-scale', label:'Scale',         min:0.1,   max:2,    step:0.01, key:'imageScale',   decimals:2, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-y',     label:'Y-Axis Offset', min:-3000, max:3000, step:10,   key:'imageYOffset', decimals:0, onChange: updateOverlays }));
+
+    // ── Stroke ────────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Stroke'));
     ct.appendChild(mkSegmented({
-      id: 'ctrl-img-stroke', label: 'Stroke Preset', key: 'imageStrokeStyle',
+      id: 'ctrl-img-stroke', label: '', key: 'imageStrokeStyle',
       options: [
         ['marketing', `<span class="stroke-sw marketing"></span><span class="seg-caption">Warm</span>`,  'Marketing Warm'],
         ['frosty',    `<span class="stroke-sw frosty"></span><span class="seg-caption">Frosty</span>`,   'Frosty Glass'],
       ],
       onChange: updateOverlays,
     }));
-    ct.appendChild(mkSlider({ id:'ctrl-img-rad', label:'Corner Radius',  min:0, max:40,  step:1,    key:'imageRadius',       decimals:0, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-img-sop', label:'Stroke Opacity', min:0, max:1,   step:0.01, key:'imageStrokeOp',     decimals:2, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-img-sw',  label:'Stroke Weight',  min:0, max:100, step:1,    key:'imageStrokeWeight', decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-sw',  label:'Weight',  min:0, max:100, step:1,    key:'imageStrokeWeight', decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-sop', label:'Opacity', min:0, max:1,   step:0.01, key:'imageStrokeOp',     decimals:2, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-rad', label:'Corner Radius', min:0, max:40, step:1, key:'imageRadius',     decimals:0, onChange: updateOverlays }));
+
+    // ── Distribution ──────────────────────────────────────
+    ct.appendChild(mkSubLabel('Distribution'));
+    buildImageDistControls(ct);
   });
 
   // ── Footer ────────────────────────────────────────────────
-  const fFooter = pane.addFolder({ title: 'Footer', expanded: false });
+  const fFooter = registerFolder(pane.addFolder({ title: 'Footer', expanded: false }));
   into(fFooter, ct => {
-    ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'Byline', key:'footerByline', onChange: updateOverlays }));
+    ct.classList.add('section-footer');
+
+    // ── Text ──────────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Text', 0));
+    ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
+
+    // ── Colour ────────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Colour'));
     ct.appendChild(mkTextBaseControl('ft'));
-    ct.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'Font Type', key:'footerFont',
-      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-    ct.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'Alignment', key:'footerAlign',
+
+    // ── Typography ────────────────────────────────────────
+    ct.appendChild(mkSubLabel('Typography'));
+    ct.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'', key:'footerAlign',
       options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
       onChange: updateOverlays }));
+    ct.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'', key:'footerFont',
+      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
+  });
+
+  // ── Accordion: only one folder open at a time ─────────────
+  // Tweakpane v3 fires 'fold' events when expanded changes
+  allFolders.forEach(folder => {
+    folder.on('fold', ev => {
+      // ev.expanded is true when this folder has just expanded
+      if (!ev.expanded) return;
+      allFolders.forEach(other => {
+        if (other !== folder && other.expanded) other.expanded = false;
+      });
+    });
   });
 }
 
@@ -2321,14 +2500,8 @@ function syncControlsToState() {
   const hlWords = document.getElementById('ctrl-hl-words');
   if (hlWords) hlWords.value = state.headlineHighlightWords || '';
 
-  // Sliders — fill opacity
-  const fillOp = document.getElementById('ctrl-hl-fill-op');
-  if (fillOp) {
-    fillOp.value = state.headlineFillOpacity;
-    _setSliderFill(fillOp);
-    const b = fillOp.closest('.slider-row')?.querySelector('.val');
-    if (b) b.textContent = (+state.headlineFillOpacity).toFixed(2);
-  }
+  // Fill opacity is hardcoded to 1.0 — no UI control
+  state.headlineFillOpacity = 1;
 
   // Checkboxes
   [
@@ -2410,4 +2583,32 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-random').addEventListener('click', randomize);
+
+  // ── Make the floating panel draggable by its header ─────────
+  const panel  = document.getElementById('panel');
+  const header = document.getElementById('panel-header');
+  if (panel && header) {
+    let dragging = false, sx = 0, sy = 0, startLeft = 0, startTop = 0;
+    header.addEventListener('pointerdown', e => {
+      if (e.target.closest('button, input, select')) return;
+      dragging = true;
+      const r = panel.getBoundingClientRect();
+      startLeft = r.left; startTop = r.top;
+      sx = e.clientX; sy = e.clientY;
+      // Switch from right-anchored to left-anchored on first drag
+      panel.style.left  = startLeft + 'px';
+      panel.style.top   = startTop  + 'px';
+      panel.style.right = 'auto';
+      header.setPointerCapture(e.pointerId);
+    });
+    header.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const nx = Math.max(8, Math.min(window.innerWidth  - panel.offsetWidth  - 8, startLeft + (e.clientX - sx)));
+      const ny = Math.max(8, Math.min(window.innerHeight - 60                    , startTop  + (e.clientY - sy)));
+      panel.style.left = nx + 'px';
+      panel.style.top  = ny + 'px';
+    });
+    header.addEventListener('pointerup',     () => { dragging = false; });
+    header.addEventListener('pointercancel', () => { dragging = false; });
+  }
 });

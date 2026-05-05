@@ -6,7 +6,12 @@ let cw, ch;
 function computeCanvasDimensions() {
   const ratio = ASPECT_RATIOS[state.aspectRatio];
   const wrap  = document.getElementById('canvas-wrap');
-  const maxW  = wrap.clientWidth  - 60;
+  // Reserve space for the floating panel on the right (320px panel + 24px
+  // gutter on each side + small buffer = 380px). Always leave that gap so
+  // landscape canvases never extend underneath the GUI.
+  const panel = document.getElementById('panel');
+  const reserveRight = panel ? Math.max(380, panel.offsetWidth + 60) : 380;
+  const maxW  = wrap.clientWidth  - reserveRight - 60;
   const maxH  = wrap.clientHeight - 60;
   if (maxW / ratio.w * ratio.h <= maxH) {
     cw = Math.max(100, Math.floor(maxW));
@@ -23,6 +28,13 @@ function computeCanvasDimensions() {
     artboard.style.height = ch + 'px';
     const scale = cw / 2696;
     artboard.style.setProperty('--scale', scale);
+    // Per-aspect footer scale (story format gets a bigger footer block,
+    // but the text inside is scaled a touch less for proportion).
+    const footerScale     = state.aspectRatio === '9:16' ? 2   : 1;
+    const footerTextScale = state.aspectRatio === '9:16' ? 1.5 : 1;
+    artboard.style.setProperty('--footer-scale',      footerScale);
+    artboard.style.setProperty('--footer-text-scale', footerTextScale);
+    artboard.dataset.aspect = state.aspectRatio;
     if (overlays) overlays.style.display = 'block';
   }
 }
@@ -301,8 +313,39 @@ function extractFillRgb(fillT, flip) {
   return sampleGradient(t, state.gradientStops).map(Math.round);
 }
 
+// ── _withHeadlineBoundsIfFilled ───────────────────────────────
+// When fill-behind-text is enabled, the headline fill box defines a
+// new TOP BOUND for the composition: the composition draws between
+// the bottom edge of the fill box and the bottom of the canvas.
+// Original proportions/behavior preserved — only the reference frame
+// shifts. Restores cw/ch after fn() returns.
+function _withHeadlineBoundsIfFilled(p, fn) {
+  if (!state.headlineFillEnabled) { fn(); return; }
+  const bbox = getHeadlineBBox();
+  if (!bbox) { fn(); return; }
+  const topBound = bbox.y + bbox.h;
+  const newH = ch - topBound;
+  if (newH < 4) { fn(); return; }
+  const dc = p.drawingContext;
+  dc.save();
+  dc.beginPath();
+  dc.rect(0, topBound, cw, newH);
+  dc.clip();
+  dc.translate(0, topBound);
+  const _ch = ch;
+  ch = newH;
+  try { fn(); } finally {
+    ch = _ch;
+    dc.restore();
+  }
+}
+
 // ── renderComposition ────────────────────────────────────────
 function renderComposition(p) {
+  _withHeadlineBoundsIfFilled(p, () => _renderCompositionImpl(p));
+}
+
+function _renderCompositionImpl(p) {
   const count   = Math.max(2, Math.floor(state.rectCount));
   const spacing = Math.max(0, state.spacing);
   const dir     = state.baseline;
@@ -381,6 +424,10 @@ function getHeadlineBBox() {
 
 // ── renderCircularComposition ────────────────────────────────
 function renderCircularComposition(p) {
+  _withHeadlineBoundsIfFilled(p, () => _renderCircularCompositionImpl(p));
+}
+
+function _renderCircularCompositionImpl(p) {
   const count = Math.max(2, Math.floor(state.circleCount));
   const maxD  = state.circleDiameter;
   // Smallest circle = 25 % of max (floored at 60 px) so it stays visible.

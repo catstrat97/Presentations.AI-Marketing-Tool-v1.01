@@ -18,45 +18,96 @@ const ASPECT_RATIOS = {
 //
 // 1:1 values derived from Figma node 95:50741 (1410×1410 canvas).
 // Conversion: value_in_state = figma_px × (2696 / 1410).
-// Original layout defaults (used by 4:5, 16:9, 9:16, 1.91:1).
-// Stored here so switching away from 1:1 restores the correct values.
-const _ORIGINAL_DEFAULTS = {
-  headlineFontSize:   120,
-  headlineYPos:       206.36,
-  headlineTracking:   -4.8,
-  headlineLineHeight: 1.1,
-  headlineAlign:      'center',
-  headlineFont:       '400',
-  headlinePadding:    0,
-  imageScale:         1.0,
-  imageYOffset:       0,
-  imageRadius:        12,
-  bgColor:            '#0c0c0f',
-};
-
+// Per-aspect-ratio defaults — applied automatically when switching aspect.
+// All values use the 2696px design-unit coordinate system (same as --scale).
+// `headlineFillEnabled` defaults to ON; per-aspect fill paddings tune the
+// fill box height. Y-offset/scale/font-size dialled in per format.
 const ASPECT_RATIO_DEFAULTS = {
+  // ── 1:1 Square ────────────────────────────────────────────
   '1:1': {
-    // Headline — from Figma node 206:78927 (1410×1410 canvas, scale 2696/1410 = 1.912)
-    // Container: top=0, py=112px → text starts at 112px from top (top-aligned, keeping padding)
-    // Text: fontSize=77px, tracking=-3.08px (−4%), lineHeight=1.1, centered, width=1056.194px
-    headlineFontSize:   147,   // 77px × 1.912
-    headlineYPos:       214,   // 112px × 1.912  (top padding = where text starts)
-    headlineTracking:   -5.9,  // -3.08px × 1.912
-    headlineLineHeight: 1.1,
-    headlineAlign:      'center',
-    headlineFont:       '400',
-    headlinePadding:    338,   // (1410−1056.194)/2 × 1.912 — constrains text width to match Figma
-    // Image card — fills lower portion of canvas
-    imageScale:         1.46,  // 1270px / 869px (default rendered width)
-    imageYOffset:       604,   // (608 − 292.6) × 1.912
-    imageRadius:        18,    // 9.17px × 1.912
-    // Background
-    bgColor:            '#000000',
+    headlineFontSize:        147,
+    headlineYPos:            214,
+    headlineTracking:        -5.9,
+    headlineLineHeight:      1.1,
+    headlineAlign:           'center',
+    headlineFont:            '400',
+    headlinePadding:         338,
+    headlineFillEnabled:     true,
+    headlineFillPaddingTop:  150,
+    headlineFillPaddingBottom: 140,
+    imageScale:              1.46,
+    imageYOffset:            604,
+    imageRadius:             18,
+    bgColor:                 '#361E1C',
   },
-  '4:5':    _ORIGINAL_DEFAULTS,
-  '16:9':   _ORIGINAL_DEFAULTS,
-  '9:16':   _ORIGINAL_DEFAULTS,
-  '1.91:1': _ORIGINAL_DEFAULTS,
+  // ── 4:5 Portrait ──────────────────────────────────────────
+  '4:5': {
+    headlineFontSize:        127,
+    headlineYPos:            206,
+    headlineTracking:        -4.8,
+    headlineLineHeight:      1.1,
+    headlineAlign:           'center',
+    headlineFont:            '400',
+    headlinePadding:         260,
+    headlineFillEnabled:     true,
+    headlineFillPaddingTop:  170,
+    headlineFillPaddingBottom: 160,
+    imageScale:              1.55,
+    imageYOffset:            590,
+    imageRadius:             12,
+    bgColor:                 '#361E1C',
+  },
+  // ── 16:9 Landscape ────────────────────────────────────────
+  '16:9': {
+    headlineFontSize:        82,
+    headlineYPos:            120,
+    headlineTracking:        -3.2,
+    headlineLineHeight:      1.15,
+    headlineAlign:           'center',
+    headlineFont:            '400',
+    headlinePadding:         420,
+    headlineFillEnabled:     true,
+    headlineFillPaddingTop:  100,
+    headlineFillPaddingBottom: 90,
+    imageScale:              1.10,
+    imageYOffset:            -90,
+    imageRadius:             12,
+    bgColor:                 '#361E1C',
+  },
+  // ── 1.91:1 (almost identical to 16:9) ─────────────────────
+  '1.91:1': {
+    headlineFontSize:        82,
+    headlineYPos:            120,
+    headlineTracking:        -3.2,
+    headlineLineHeight:      1.15,
+    headlineAlign:           'center',
+    headlineFont:            '400',
+    headlinePadding:         440,
+    headlineFillEnabled:     true,
+    headlineFillPaddingTop:  100,
+    headlineFillPaddingBottom: 90,
+    imageScale:              1.10,
+    imageYOffset:            -90,
+    imageRadius:             12,
+    bgColor:                 '#361E1C',
+  },
+  // ── 9:16 Story ────────────────────────────────────────────
+  '9:16': {
+    headlineFontSize:        172,
+    headlineYPos:            260,
+    headlineTracking:        -6.9,
+    headlineLineHeight:      1.1,
+    headlineAlign:           'center',
+    headlineFont:            '400',
+    headlinePadding:         140,
+    headlineFillEnabled:     true,
+    headlineFillPaddingTop:  220,
+    headlineFillPaddingBottom: 210,
+    imageScale:              1.49,
+    imageYOffset:            1430,
+    imageRadius:             18,
+    bgColor:                 '#361E1C',
+  },
 };
 
 // ── Built-in Palettes ────────────────────────────────────────
@@ -118,20 +169,30 @@ const PALETTES = {
 // so the background gradient always matches what's on the shapes.
 const BG_GRADIENTS = {
   marketingWarm: {
-    label: 'Warm-Dark',
+    label: 'Warm Dark',
     theme: 'warm',
+    mode:  'dark',
     dir:   'vertical',
     get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingWarm.stops)); },
   },
+  marketingWarmLight: {
+    label: 'Warm Light',
+    theme: 'warm',
+    mode:  'light',
+    dir:   'vertical',
+    get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingWarmLight.stops)); },
+  },
   marketingCool: {
-    label: 'Cool-Dark Mode',
+    label: 'Cool Dark',
     theme: 'cool',
+    mode:  'dark',
     dir:   'vertical',
     get stops() { return JSON.parse(JSON.stringify(PALETTES.marketingCool.stops)); },
   },
   arctic: {
-    label: 'Cool-Light',
+    label: 'Cool Light',
     theme: 'cool',
+    mode:  'light',
     dir:   'vertical',
     get stops() { return JSON.parse(JSON.stringify(PALETTES.arctic.stops)); },
   },
@@ -284,7 +345,7 @@ const state = {
   opacity:      0.88,
   globalOpacity: false,
   blur:         0,
-  bgColor:      '#0c0c0f',
+  bgColor:      '#361E1C',  // Warm-Dark "Dark Umber" — default sits in the warm palette
 
   // Background gradient mode
   bgGradientMode:   false,
@@ -314,9 +375,13 @@ const state = {
   headlineTextBase:       '#ffffff',   // '#050505' | '#ffffff' — two-state toggle
   headlineTextOpacity:    1.0,          // 0–1, applied on top of base
   headlineTextColor:      '#ffffff',   // computed by applyTextAdaptation(), do not set manually
-  headlineFillEnabled:    false,
-  headlineFillColor:      '#000000',
-  headlineFillOpacity:    0.5,
+  headlineFillEnabled:    true,
+  headlineFillColor:      '#121212',
+  headlineFillOpacity:    1.0,  // locked to 1; no UI control
+  // Dynamic fill-box paddings (design units). Per-aspect defaults
+  // override these via ASPECT_RATIO_DEFAULTS.
+  headlineFillPaddingTop:    214,
+  headlineFillPaddingBottom: 201,
   headlineAlign:          'center',
   headlineTracking:       -4.8,
   headlineLineHeight:     1.1,

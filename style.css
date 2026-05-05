@@ -29,7 +29,7 @@
   --ring: rgba(250, 250, 250, 0.15);
   --input-bg: #111113;
   --hover-bg: #2a2a2e;
-  --font: 'Satoshi', system-ui, sans-serif;
+  --font: 'Innovators Grotesk', system-ui, sans-serif;
   --innovator: 'Innovators Grotesk', sans-serif;
 }
 
@@ -57,6 +57,10 @@ html, body {
   background: #000;
   position: relative;
   overflow: hidden;
+  /* Reserve space on the right for the floating panel (320px panel
+     + 24px gutter on each side + small buffer = 380px) so the canvas
+     never extends underneath the GUI on wide aspect ratios. */
+  padding-right: 380px;
 }
 
 #artboard {
@@ -112,6 +116,7 @@ html, body {
   /* subtle hint while editing */
   box-shadow: inset 0 -2px 0 0 currentColor;
 }
+
 /* Highlighted words — colour set via inline style="color:..." */
 .headline-hl {
   /* color is set inline by JS; no background, no padding */
@@ -162,10 +167,12 @@ html, body {
   color: rgba(255,255,255,0.1);
 }
 
-/* Footer Overlay */
+/* Footer Overlay
+   --footer-scale lets specific aspect ratios (e.g. 9:16) inflate the
+   footer block while contents keep their relative positioning. */
 #overlay-footer {
   width: 100%;
-  height: calc(190px * var(--scale));
+  height: calc(190px * var(--scale) * var(--footer-scale, 1));
   bottom: 0;
   left: 0;
   background: rgba(0,0,0,0.6);
@@ -174,8 +181,12 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(48.6px * var(--scale)) calc(48.6px * var(--scale)) calc(48.6px * var(--scale)) calc(45px * var(--scale));
-  box-shadow: 
+  padding:
+    calc(48.6px * var(--scale) * var(--footer-scale, 1))
+    calc(48.6px * var(--scale) * var(--footer-scale, 1))
+    calc(48.6px * var(--scale) * var(--footer-scale, 1))
+    calc(45px * var(--scale) * var(--footer-scale, 1));
+  box-shadow:
     0 calc(8px * var(--scale)) calc(16.8px * var(--scale)) 0 rgba(0,0,0,0.29),
     0 calc(7.2px * var(--scale)) calc(10.8px * var(--scale)) 0 rgba(0,0,0,0.15),
     0 calc(3.6px * var(--scale)) calc(3.6px * var(--scale)) 0 rgba(0,0,0,0.3),
@@ -185,12 +196,16 @@ html, body {
 #footer-byline {
   font-family: var(--innovator);
   font-weight: 500;
-  font-size: calc(54.517px * var(--scale));
+  font-size: calc(54.517px * var(--scale) * var(--footer-text-scale, 1));
   color: #fff; /* overridden by JS applyTextAdaptation() */
   line-height: 1.1;
-  letter-spacing: calc(-1.6355px * var(--scale));
+  letter-spacing: calc(-1.6355px * var(--scale) * var(--footer-text-scale, 1));
   white-space: nowrap;
   transition: color 0.2s;
+}
+
+#overlay-footer .pai-logo {
+  height: calc(71.51px * var(--scale) * var(--footer-text-scale, 1));
 }
 
 .footer-logo-wrap {
@@ -207,27 +222,62 @@ html, body {
   mix-blend-mode: normal;
 }
 
-/* ── Side Panel ───────────────────────────────────────────── */
+/* ── Floating Panel ───────────────────────────────────────── */
 #panel {
-  width: 260px;
-  height: 100vh;
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  width: 320px;
+  max-height: calc(100vh - 48px);
   background: var(--bg-panel);
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
-  z-index: 20;
+  z-index: 100;
+  font-family: var(--font);
+  box-shadow:
+    0 12px 32px rgba(0,0,0,0.5),
+    0 4px 12px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(255,255,255,0.04);
+  user-select: none;
 }
 
+/* Canvas area should fill full width when panel floats above it */
+#app { position: relative; }
+#canvas-wrap { width: 100%; }
+
 #panel-header {
-  padding: 12px 14px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  cursor: grab;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.02), transparent);
 }
+
+#panel-header:active {
+  cursor: grabbing;
+}
+
+#panel-header::before {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%);
+}
+
+#panel-header { position: relative; padding-top: 18px; }
 
 #panel-header h1 {
   font-size: 14px;
@@ -781,19 +831,103 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   margin-top: 8px;
 }
 
-/* ── Gradient Bar ─────────────────────────────────────────── */
-.grad-bar-outer { position: relative; width: 100%; margin-bottom: 12px; }
-#grad-bar { display: block; width: 100%; height: 28px; border-radius: 6px; border: 1px solid var(--border); }
-.grad-markers { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-.grad-marker {
+/* ── Gradient Bar (clean, click-to-recolor stops) ─────────── */
+.grad-bar-outer {
+  position: relative;
+  width: 100%;
+  margin: 0;
+}
+#grad-bar {
+  display: block;
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.grad-markers {
   position: absolute;
-  top: -4px;
-  width: 12px; height: 12px;
-  background: var(--bg-panel);
-  border: 2px solid currentColor;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Stops sit INSIDE the bar — small clean dots, evenly aligned by % */
+.grad-stop-dot {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--bg-panel);
-  z-index: 2;
+  background: currentColor;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 3;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.grad-stop-dot:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 0 0 3px rgba(255,255,255,0.2);
+}
+
+/* Hidden colour input — click the dot to open native picker */
+.grad-stop-color-hidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+/* ── Gradient action buttons (Flip + Shuffle) ─────────────── */
+.grad-action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.grad-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.grad-action-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--text-dim);
+}
+
+.grad-action-btn.active {
+  background: var(--hover-bg);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.grad-action-btn svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 /* ── Stop List ────────────────────────────────────────────── */
@@ -1180,6 +1314,42 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
    (Tweakpane v3 uses tp-fld_* class names, not tp-fldv_*)
    ══════════════════════════════════════════════════════════════ */
 
+/* Force Innovators Grotesk on every Tweakpane element + reset all width/indent */
+.tp-dfwv,
+.tp-cnt,
+.tp-rotv, .tp-rot,
+.tp-fldv, .tp-fld,
+.tp-fldv_t, .tp-fld_t,
+.tp-fldv_c, .tp-fld_c,
+.tp-fldv_b, .tp-fld_b,
+.tp-fldv_m, .tp-fld_m,
+.tp-fldv_i, .tp-fld_i,
+.tp-brkv, .tp-brk,
+.tp-lblv, .tp-lbl,
+.tp-cntv, .tp-cnt {
+  font-family: var(--font) !important;
+  font-feature-settings: normal !important;
+}
+
+/* Tweakpane indent — kill it (it eats ~16px on the left) */
+.tp-fldv_i, .tp-fld_i {
+  display: none !important;
+  width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* Force all Tweakpane content to span full width */
+.tp-rotv, .tp-rot,
+.tp-fldv, .tp-fld,
+.tp-fldv_c, .tp-fld_c {
+  width: 100% !important;
+  margin: 0 !important;
+  --cnt-h-padding: 0 !important;
+  --cnt-v-padding: 0 !important;
+}
+
 /* Pane outer container — transparent, no shadow/border */
 .tp-dfwv,
 .tp-cnt {
@@ -1211,83 +1381,138 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   background: transparent !important;
 }
 
-/* Folder view — with bottom divider */
+/* Folder view — module card */
 .tp-fldv,
 .tp-fld {
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  margin-bottom: 10px !important;
+  padding: 0 14px !important;
+  overflow: hidden !important;
 }
 
-/* Folder title button — section header */
-.tp-fldv_t,
-.tp-fld_t {
+.tp-fldv:hover,
+.tp-fld:hover {
+  border-color: #2c2c30 !important;
+}
+
+/* First folder gets a slight top margin */
+.tp-rotv > .tp-fldv:first-child,
+.tp-rot > .tp-fld:first-child {
+  margin-top: 10px !important;
+}
+
+/* ── Spacing system ─────────────────────────────────────────
+   --space-1 = 4px   (hairline)
+   --space-2 = 8px   (tight)
+   --space-3 = 12px  (default element gap)
+   --space-4 = 16px  (sub-section gap)
+   --space-5 = 20px  (section padding)
+   --space-6 = 24px  (between sections)
+*/
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+}
+
+/* ── Folder header — CORRECT Tweakpane v3 structure ─────────
+   <button class="tp-fld_b">              ← clickable button (the "header bar")
+     <div class="tp-fld_t">Title Text</div>  ← title TEXT
+   </button>
+   <div class="tp-fld_m">▶</div>          ← chevron mark
+*/
+
+/* The button = the visible header bar, full width, generous height */
+.tp-fldv_b,
+.tp-fld_b {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
-  padding: 18px 0 16px !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-height: 52px !important;
+  height: auto !important;
+  padding: var(--space-4) 0 !important;
   background: transparent !important;
   border: none !important;
   cursor: pointer !important;
   user-select: none !important;
-  width: 100% !important;
-  min-height: 0 !important;
-  height: auto !important;
-  line-height: 1 !important;
-  transition: color 0.15s !important;
-}
-
-.tp-fldv_t:hover,
-.tp-fld_t:hover {
-  color: var(--text) !important;
-}
-
-/* Folder title text — prominent section label */
-.tp-fldv_t .tp-fldv_m,
-.tp-fld_t .tp-fld_m,
-.tp-fld_t > span,
-.tp-fld_t::before {
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
-  color: var(--text) !important;
+  text-align: left !important;
   font-family: var(--font) !important;
+  position: relative !important;
 }
 
-/* Folder arrow/chevron — clearer indicator */
-.tp-fldv_b,
-.tp-fld_b {
-  color: var(--text-dim) !important;
+/* The TITLE TEXT — large, bold, pure white, unclipped */
+.tp-fldv_t,
+.tp-fld_t {
+  display: block !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  font-family: var(--font) !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.2 !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  text-transform: none !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* The chevron MARK — fixed size on the right of the button */
+.tp-fldv_m,
+.tp-fld_m {
+  position: absolute !important;
+  right: 0 !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0 !important;
+  color: #ffffff !important;
+  opacity: 0.6 !important;
   background: transparent !important;
   border: none !important;
   padding: 0 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 18px !important;
-  height: 18px !important;
-  opacity: 0.7 !important;
   transition: opacity 0.15s, transform 0.2s !important;
 }
 
-.tp-fldv_t:hover .tp-fldv_b,
-.tp-fld_t:hover .tp-fld_b {
+.tp-fld_b:hover ~ .tp-fld_m,
+.tp-fld_b:hover .tp-fld_m,
+.tp-fld:hover .tp-fld_m {
   opacity: 1 !important;
 }
 
-/* Folder content area — clean inner padding */
+/* Folder content area — uses spacing system + subtle divider */
 .tp-fldv_c,
 .tp-fld_c {
-  padding: 4px 0 20px !important;
+  padding: var(--space-4) 0 var(--space-5) !important;
   background: transparent !important;
   border: none !important;
+  border-top: 1px solid rgba(255,255,255,0.04) !important;
 }
 
-/* Collapsed folder — no inner padding */
+/* Collapsed folder — fully removes content padding & divider */
 .tp-fldv:not(.tp-fldv-expanded) .tp-fldv_c,
 .tp-fld:not(.tp-fld-expanded) .tp-fld_c {
   padding: 0 !important;
+  border-top: none !important;
 }
 
 /* Tweakpane inner blade containers — remove backgrounds */
@@ -1299,70 +1524,99 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
 }
 
 /* ── Custom content injected via into() ──────────────────────
-   Establishes the spacing rhythm inside each folder.
-   Element spacing: 10px, sub-section spacing handled by mkSubLabel margins */
+   HIERARCHY:
+   - Section title (folder header)  : 14px / 600 / #fff
+   - Sub-section label (.sub)       : 11px / 600 / uppercase / dim
+   - Control label                  : 12px / 500 / dim
+   - Value text                     : 12px / 400 / text
+   SPACING:
+   - Element gap inside content     : var(--space-3) = 12px
+   - Sub-section margin             : var(--space-4) = 16px
+*/
 .tp-custom {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
   padding: 0;
 }
 
-/* Tighten control-row default margins inside Tweakpane folders */
+/* Default control row */
 .tp-custom .control-row {
   margin-bottom: 0;
 }
 
+/* Slider row — uniform height */
 .tp-custom .slider-row {
   margin-bottom: 0;
-  height: 38px;
+  height: 40px;
 }
 
-/* Sub-labels become subsection dividers with consistent spacing */
+/* Sub-section label — TIER 2 hierarchy */
 .tp-custom .section-label.sub {
-  margin-top: 14px;
-  margin-bottom: 6px;
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-dim);
-  opacity: 0.85;
+  opacity: 0.9;
+  line-height: 1;
 }
 
 .tp-custom .section-label.sub:first-child {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
-/* Toggle rows — consistent height + spacing */
+/* Toggle rows — uniform height */
 .tp-custom .toggle-row {
   margin-bottom: 0;
-  min-height: 28px;
-  padding: 4px 0;
-}
-
-/* Color rows — consistent height */
-.tp-custom .color-row {
-  min-height: 38px;
-  padding: 6px 12px;
-}
-
-/* Standardize segmented control height */
-.tp-custom .segmented:not(.grid) {
   min-height: 32px;
+  padding: var(--space-1) 0;
+  align-items: center;
+}
+
+/* Color rows — uniform height */
+.tp-custom .color-row {
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+}
+
+/* Segmented controls — uniform height */
+.tp-custom .segmented:not(.grid) {
+  min-height: 34px;
+  border-radius: 8px;
 }
 
 .tp-custom .segmented:not(.grid) .seg-btn {
-  padding: 8px 0;
+  padding: var(--space-2) 0;
   font-size: 12px;
+  font-weight: 500;
 }
 
-/* Labels above controls — consistent typography */
+/* Control labels — TIER 3 hierarchy */
 .tp-custom .control-row > label {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-dim);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
   letter-spacing: 0;
   text-transform: none;
+  line-height: 1.2;
+}
+
+/* Slider label & value — TIER 4 (in-control text) */
+.tp-custom .slider-row .ctrl-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.tp-custom .slider-row .val {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dim);
 }
 
 /* ── Theme Circles ─────────────────────────────────────────── */
@@ -1410,10 +1664,6 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
    ══════════════════════════════════════════════════════════════ */
 
 /* Panel header — keep clean & minimal */
-#panel {
-  width: 280px;
-}
-
 #panel-header {
   padding: 16px 18px;
 }
@@ -1564,3 +1814,728 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
 .preset-save-row .text-input { height: 34px; font-size: 12px; }
 .preset-save-row .seg-btn { height: 34px; border-radius: 8px; }
 .preset-chip { padding: 7px 8px 7px 12px; border-radius: 8px; }
+
+/* ══════════════════════════════════════════════════════════════
+   COLOR & THEME — scoped spacing
+   Visual structure (top → bottom):
+     [Theme label]                    ─ tier-3 label
+     [Warm/Cool circles]              ─ swatch row
+     ─────────  16px gap  ─────────
+     [Mode segmented]                 ─ Light / Dark
+     ─────────  20px gap  ─────────
+     [SHAPE GRADIENT label]           ─ tier-2 sub-section
+       Mode segmented (Normal/Sym/Sync)
+       Flip Bar Gradient toggle
+       Gradient bar (interactive)
+       Hint line
+       Shuffle button
+     ─────────  20px gap  ─────────
+     [BACKGROUND label]               ─ tier-2 sub-section
+       BG Type (Solid/Gradient)
+       Color picker / Gradient presets
+       Swatches grid
+   ══════════════════════════════════════════════════════════════ */
+
+.tp-custom.section-color-theme {
+  gap: var(--space-3);
+}
+
+/* "Theme" label above the circles */
+.section-color-theme .theme-section-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin: 0 0 var(--space-2);
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+/* Warm / Cool circles row */
+.section-color-theme .theme-circle-row {
+  display: flex;
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0 0 var(--space-3);
+  align-items: center;
+  min-height: 32px;
+}
+
+.section-color-theme .theme-circle-btn {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+}
+
+/* Light / Dark mode row — full width, no label, prominent (top hierarchy) */
+.section-color-theme .mode-row-noLabel {
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.section-color-theme #ct-mode-col {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 8px;
+}
+
+.section-color-theme #ct-mode-col .ct-mode-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 0;
+}
+
+/* Sub-section labels (Shape Gradient / Background) — clear separators */
+.section-color-theme .section-label.sub {
+  margin-top: var(--space-5);
+  margin-bottom: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+/* Inside Shape Gradient section: clean ordered stack */
+.section-color-theme .control-row {
+  margin: 0;
+}
+
+/* Stops Mode segmented (Normal | Symmetrical | Sync) — sits above bar */
+.section-color-theme #ctrl-palette-mode {
+  width: 100%;
+  min-height: 34px;
+  margin: 0 0 var(--space-3);
+}
+
+/* Gradient bar — full-width, clear gap to action row */
+.section-color-theme .grad-bar-outer {
+  margin: 0 0 var(--space-3);
+}
+
+/* Action row (Flip + Shuffle) — even split */
+.section-color-theme .grad-action-row {
+  margin: 0;
+}
+
+/* BG Type segmented (no label) — full width */
+.section-color-theme #ctrl-bg-mode {
+  margin-top: var(--space-1);
+  width: 100%;
+  min-height: 38px;
+}
+
+.section-color-theme .control-row.no-label {
+  display: block;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   COMPOSITION — scoped spacing
+   Visual structure (top → bottom):
+     [Rectangle | Circular | Image]      ─ comp cards
+     ─── group of type-specific controls
+     [CURVE DISTRIBUTION]                ─ tier-2 sub-section
+     [8-tile grid]
+     [Flip Curve Shape] toggle
+     [curve preview canvas]
+     [Blur slider]
+   ══════════════════════════════════════════════════════════════ */
+
+.tp-custom.section-composition {
+  gap: var(--space-3);
+}
+
+/* Comp cards row — even 3-col grid, consistent height */
+.section-composition .comp-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.section-composition .comp-card {
+  padding: var(--space-3) var(--space-1);
+  border-radius: 8px;
+  gap: var(--space-2);
+}
+
+.section-composition .comp-card svg {
+  width: 28px;
+  height: 28px;
+}
+
+.section-composition .comp-card span {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Type-group inner spacing */
+.section-composition .ctrl-group {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.section-composition .ctrl-group.active {
+  display: flex;
+}
+
+/* Anchor grid centered */
+.section-composition .anchor-grid {
+  width: 96px;
+  border-radius: 8px;
+}
+
+/* Sub-section labels (Text-Aware Positioning, Fine Tune, Curve Distribution) */
+.section-composition .section-label.sub {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+/* First sub-label of a group has no top divider */
+.section-composition .ctrl-group .section-label.sub:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* Curve grid (4-col tile picker) — clean even cells */
+.section-composition #ctrl-curve.segmented.grid {
+  gap: var(--space-1);
+}
+
+.section-composition #ctrl-curve .seg-btn {
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.section-composition #ctrl-curve .seg-btn svg {
+  width: 70%;
+  height: 70%;
+}
+
+/* Curve controls wrap — same flex/gap rhythm as type-groups */
+.section-composition #curve-controls-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.section-composition #curve-controls-wrap[style*="display: none"] {
+  display: none !important;
+}
+
+/* Curve preview canvas — clean, full-width, no label */
+.section-composition .curve-preview-wrap {
+  margin: 0;
+}
+
+.section-composition #curve-preview {
+  width: 100%;
+  height: 56px;
+  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  display: block;
+}
+
+/* New Seed button — same height as other action buttons */
+.section-composition #noise-reseed-row .ctrl-btn {
+  height: 36px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Image preset picker row — label + picker side by side */
+.section-composition .img-preset-picker {
+  margin: 0;
+}
+
+/* Hidden conditional rows — collapse fully (no parent flex gap) */
+.section-composition .ctrl-group [style*="display: none"],
+.section-composition #curve-controls-wrap [style*="display: none"] {
+  margin: 0 !important;
+}
+
+/* Image group preset picker — clean spacing */
+.section-composition #group-img-comp .img-preset-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.section-composition #group-img-comp .img-preset-btn {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HEADLINE — scoped spacing
+   Sub-sections (top → bottom):
+     TEXT       : textarea + highlight words input
+     COLOUR     : text base toggle + opacity, highlight colour
+     FILL       : fill toggle, fill colour
+     TYPOGRAPHY : alignment, font weight, font size, line height
+     POSITION   : y position, L/R padding
+   ══════════════════════════════════════════════════════════════ */
+
+.tp-custom.section-headline {
+  gap: var(--space-3);
+}
+
+/* Sub-section labels with consistent dividers */
+.section-headline .section-label.sub {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+/* First sub-label of the section: no top divider */
+.section-headline .section-label.sub:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Textarea — comfortable height */
+.section-headline #ctrl-hl-text {
+  min-height: 84px;
+  padding: var(--space-3);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Highlight Words input */
+.section-headline #ctrl-hl-words {
+  height: 36px;
+  border-radius: 8px;
+}
+
+/* Text Base control (Dark/Light + opacity) inside Colour group */
+.section-headline .text-base-ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.section-headline .text-base-ctrl .control-row {
+  margin-bottom: 0;
+}
+
+.section-headline .text-base-ctrl > .control-row:first-child {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.section-headline .text-base-ctrl > .control-row:first-child > label {
+  margin-bottom: 0;
+}
+
+.section-headline .text-base-ctrl #ctrl-hl-text-base {
+  width: 100%;
+  min-height: 32px;
+  border-radius: 8px;
+}
+
+/* Colour rows in Headline */
+.section-headline .color-row {
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+}
+
+.section-headline .color-row > label {
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* Toggle row (Fill Behind Text) — uniform height with neighbors */
+.section-headline .toggle-row {
+  margin: 0;
+  min-height: 36px;
+  padding: var(--space-1) 0;
+  align-items: center;
+}
+
+.section-headline .toggle-row label:first-child {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Typography segmented (alignment, font weight) — full width, no label */
+.section-headline #ctrl-hl-align,
+.section-headline #ctrl-hl-font {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 8px;
+}
+
+.section-headline .control-row.no-label {
+  display: block;
+}
+
+.section-headline .control-row.no-label > label {
+  display: none;
+}
+
+/* Sliders — uniform 40px height with consistent rhythm */
+.section-headline .slider-row {
+  height: 40px;
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   IMAGE PLACEHOLDER — scoped spacing
+   Sub-sections (top → bottom):
+     UPLOAD       : choose-image button
+     PRESETS      : style picker, image grid, shuffle
+     POSITION     : scale, y offset
+     STROKE       : preset segmented, weight, opacity, corner radius
+     DISTRIBUTION : multi toggle + (count, mode, spacing)
+   ══════════════════════════════════════════════════════════════ */
+
+.tp-custom.section-image {
+  gap: var(--space-3);
+}
+
+/* Sub-section labels with dividers */
+.section-image .section-label.sub {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.section-image .section-label.sub:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Custom upload button (replaces ugly default file input) */
+.section-image .img-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px dashed var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.section-image .img-upload-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--text-dim);
+  border-style: solid;
+}
+
+/* ── Image presets — overhauled ────────────────────────────
+   Layout: compact style tabs (1-5) → larger image gallery (2-col) → shuffle */
+
+/* Style tabs row — compact numbered chips */
+.section-image .img-style-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  padding: 4px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.section-image .img-style-tab {
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.section-image .img-style-tab:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+.section-image .img-style-tab.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+/* Image gallery — large 2-col cards */
+.section-image .img-gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.section-image .img-gallery-card {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.section-image .img-gallery-card:hover {
+  border-color: var(--text-dim);
+  transform: translateY(-1px);
+}
+
+.section-image .img-gallery-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.section-image .img-gallery-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.section-image .img-gallery-empty {
+  grid-column: 1 / -1;
+  padding: var(--space-4);
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--input-bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.section-image .control-row > label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-bottom: var(--space-2);
+}
+
+/* Shuffle button uses .grad-action-btn — no extra rules needed */
+
+/* Sliders — uniform height */
+.section-image .slider-row {
+  height: 40px;
+  margin: 0;
+}
+
+/* Stroke preset segmented — full width, taller for swatches */
+.section-image #ctrl-img-stroke {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 8px;
+}
+
+.section-image #ctrl-img-stroke .seg-btn {
+  padding: var(--space-2) 0;
+}
+
+/* Multi toggle row */
+.section-image .toggle-row {
+  margin: 0;
+  min-height: 36px;
+  padding: var(--space-1) 0;
+  align-items: center;
+}
+
+/* Multi-image group inner gap */
+.section-image #img-multi-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/* Distribution mode segmented */
+.section-image #ctrl-img-dist-mode {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 8px;
+}
+
+.section-image .control-row.no-label {
+  display: block;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FOOTER — scoped spacing
+   Sub-sections (top → bottom):
+     TEXT       : byline input
+     COLOUR     : text base + opacity
+     TYPOGRAPHY : alignment, font weight
+   ══════════════════════════════════════════════════════════════ */
+
+.tp-custom.section-footer {
+  gap: var(--space-3);
+}
+
+.section-footer .section-label.sub {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.section-footer .section-label.sub:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Byline input */
+.section-footer #ctrl-ft-byline {
+  height: 36px;
+  border-radius: 8px;
+}
+
+/* Text base control inside Colour group */
+.section-footer .text-base-ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.section-footer .text-base-ctrl > .control-row:first-child {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.section-footer .text-base-ctrl > .control-row:first-child > label {
+  margin-bottom: 0;
+}
+
+.section-footer #ctrl-ft-text-base {
+  width: 100%;
+  min-height: 32px;
+  border-radius: 8px;
+}
+
+/* Typography segmented (alignment, font weight) */
+.section-footer #ctrl-ft-align,
+.section-footer #ctrl-ft-font {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 8px;
+}
+
+.section-footer .control-row.no-label {
+  display: block;
+}
+
+.section-color-theme #bg-solid-group,
+.section-color-theme #bg-grad-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/* Background colour picker */
+.section-color-theme #bg-solid-group .color-row {
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+}
+
+/* BG swatch grid — even cells, fixed columns */
+.section-color-theme #bg-swatch-container {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.section-color-theme .bg-swatch {
+  width: 100%;
+  height: 32px;
+  border-radius: 8px;
+  margin: 0;
+}
+
+/* BG gradient presets — even grid */
+.section-color-theme #bg-grad-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.section-color-theme .bg-grad-btn {
+  padding: var(--space-2);
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.section-color-theme .bg-grad-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  height: auto;
+}
+
+/* Flip BG gradient toggle — sits under the gradient grid */
+.section-color-theme #bg-grad-flip-row {
+  margin-top: var(--space-2);
+}
