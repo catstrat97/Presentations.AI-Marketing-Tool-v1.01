@@ -63,7 +63,8 @@ function syncTextBaseUI() {
     const opEl = document.getElementById(`ctrl-${prefix}-text-op`);
     if (opEl) {
       opEl.value = state[opKey] ?? 1;
-      const valEl = opEl.closest('.control-row')?.querySelector('.val');
+      _setSliderFill(opEl);
+      const valEl = opEl.closest('.slider-row')?.querySelector('.val');
       if (valEl) valEl.textContent = Math.round((state[opKey] ?? 1) * 100) + '%';
     }
   });
@@ -589,95 +590,32 @@ function syncTheme() {
       btn.style.display = (!bgTheme || bgTheme === state.theme) ? '' : 'none';
     });
   }
+
+  // Sync theme circle borders
+  document.querySelectorAll('[data-theme-circle]').forEach(b =>
+    b.style.borderColor = b.dataset.themeCircle === state.theme ? '#fff' : 'transparent');
 }
 
 // ══════════════════════════════════════════════════════════════
-// GRADIENT SECTION
+// PALETTE SELECTION — module-scope so both sections can use it
+// ══════════════════════════════════════════════════════════════
+function selectPalette(key) {
+  state.palette = key;
+  if (key !== 'custom') applyPalette(key);
+  state.imageStrokeStyle = (state.theme === 'cool') ? 'frosty' : 'marketing';
+  const palRow = document.getElementById('ctrl-palette');
+  if (palRow) palRow.querySelectorAll('.palette-sw').forEach(s => s.classList.toggle('active', s.dataset.value === key));
+  rebuildBgSwatches();
+  rebuildCtSwatches();
+  updateOverlays();
+  renderStopList();
+}
+
+// ══════════════════════════════════════════════════════════════
+// GRADIENT SECTION — gradient bar + stop list only
+// (Theme toggle and palette swatches now live in buildColorThemeSection)
 // ══════════════════════════════════════════════════════════════
 function buildGradientSection(sec) {
-  // ── Theme toggle (Warm / Cool) ────────────────────────────
-  sec.appendChild(mkSegmented({
-    id: 'ctrl-theme', label: 'Theme', key: 'theme',
-    options: [['warm', 'Warm'], ['cool', 'Cool']],
-    onChange: (v) => {
-      state.theme = v;
-
-      // Reset palette to first one in the new theme
-      const firstPal = Object.entries(PALETTES).find(([, p]) => p.tone === v);
-      if (firstPal) { state.palette = firstPal[0]; applyPalette(firstPal[0]); }
-
-      // Set stroke style from theme
-      state.imageStrokeStyle = (v === 'cool') ? 'frosty' : 'marketing';
-
-      // Reset BG gradient if it belongs to the wrong theme
-      if (state.bgGradientMode && state.bgGradientPreset) {
-        const currentBgTheme = BG_GRADIENTS[state.bgGradientPreset]?.theme;
-        if (currentBgTheme !== v) {
-          const firstBg = Object.entries(BG_GRADIENTS).find(([, bg]) => bg.theme === v);
-          if (firstBg) {
-            state.bgGradientPreset = firstBg[0];
-            state.bgGradientStops  = JSON.parse(JSON.stringify(firstBg[1].stops));
-            state.bgGradientDir    = firstBg[1].dir || 'vertical';
-          } else {
-            state.bgGradientMode = false;
-          }
-        }
-      }
-
-      // Reset solid BG color to a mid-range swatch in the new theme
-      const newBgs = BG_PALETTE_MAP[v] || [];
-      if (newBgs.length && !newBgs.some(b => b.color.toLowerCase() === state.bgColor.toLowerCase())) {
-        state.bgColor = newBgs[Math.floor(newBgs.length / 2)].color;
-        const bgPicker = document.getElementById('ctrl-bgcolor');
-        if (bgPicker) bgPicker.value = state.bgColor;
-      }
-
-      syncTheme();
-      syncPaletteSelect();
-      renderStopList();
-      updateOverlays();
-      redraw();
-    },
-  }));
-
-  // Palette swatches — gradient previews
-  const palWrap = document.createElement('div'); palWrap.className = 'control-row';
-  const palLabel = document.createElement('label'); palLabel.textContent = 'Palette';
-  palWrap.appendChild(palLabel);
-  const palRow = document.createElement('div'); palRow.className = 'palette-row'; palRow.id = 'ctrl-palette';
-
-  const selectPalette = (key) => {
-    state.palette = key;
-    if (key !== 'custom') applyPalette(key);
-    state.imageStrokeStyle = (state.theme === 'cool') ? 'frosty' : 'marketing';
-    palRow.querySelectorAll('.palette-sw').forEach(s => s.classList.toggle('active', s.dataset.value === key));
-    rebuildBgSwatches();
-    updateOverlays();
-    renderStopList();
-  };
-
-  Object.entries(PALETTES).forEach(([key, p]) => {
-    if (!p.tone) return; // skip 'custom' — not shown in theme-filtered palette row
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.dataset.value = key;
-    btn.title = p.label;
-    btn.className = 'palette-sw' + (state.palette === key ? ' active' : '');
-    // Initial visibility — hide if tone doesn't match current theme
-    btn.style.display = (p.tone === state.theme) ? '' : 'none';
-    const sw = document.createElement('span'); sw.className = 'palette-sw-fill';
-    if (p.stops) {
-      const css = p.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
-      sw.style.background = `linear-gradient(90deg, ${css})`;
-    }
-    const cap = document.createElement('span'); cap.className = 'palette-sw-label'; cap.textContent = p.label;
-    btn.appendChild(sw); btn.appendChild(cap);
-    btn.addEventListener('click', () => selectPalette(key));
-    palRow.appendChild(btn);
-  });
-  palWrap.appendChild(palRow);
-  sec.appendChild(palWrap);
-
   // ── Palette mode selector ─────────────────────────────────
   sec.appendChild(mkSegmented({
     id: 'ctrl-palette-mode', label: 'Mode', key: 'paletteMode',
@@ -702,22 +640,6 @@ function buildGradientSection(sec) {
   const markers = document.createElement('div'); markers.id = 'grad-markers'; markers.className = 'grad-markers';
   barOuter.appendChild(bar); barOuter.appendChild(markers);
   sec.appendChild(barOuter);
-
-  const stopList = document.createElement('div'); stopList.id = 'grad-stops-list'; stopList.className = 'grad-stops-list';
-  sec.appendChild(stopList);
-
-  const actions = document.createElement('div'); actions.className = 'grad-actions'; actions.id = 'grad-stop-actions';
-  const addBtn  = document.createElement('button'); addBtn.className = 'btn small'; addBtn.id = 'btn-add-stop'; addBtn.textContent = '+ Add Stop';
-  addBtn.addEventListener('click', () => { addGradientStop(0.5); state.palette = 'custom'; syncPaletteSelect(); redraw(); renderStopList(); });
-
-  const subDiv   = document.createElement('div'); subDiv.className = 'subdivide-ctrl';
-  const subLabel = document.createElement('span'); subLabel.textContent = 'Subdivide';
-  const subN = document.createElement('input'); subN.type = 'number'; subN.id = 'subdivide-n'; subN.min = '1'; subN.max = '8'; subN.value = '2'; subN.className = 'subdivide-input';
-  const subBtn = document.createElement('button'); subBtn.className = 'btn small'; subBtn.textContent = 'Apply';
-  subBtn.addEventListener('click', () => { subdivideGradient(Math.max(1,Math.min(8,parseInt(subN.value,10)||2))); state.palette='custom'; syncPaletteSelect(); redraw(); renderStopList(); });
-  subDiv.appendChild(subLabel); subDiv.appendChild(subN); subDiv.appendChild(subBtn);
-  actions.appendChild(addBtn); actions.appendChild(subDiv);
-  sec.appendChild(actions);
 
   // Shuffle row — visible in symmetrical / sync modes only
   const shuffleRow = document.createElement('div'); shuffleRow.className = 'grad-actions'; shuffleRow.id = 'grad-shuffle-row'; shuffleRow.style.display = 'none';
@@ -765,20 +687,51 @@ function renderCurvePreview() {
 // ══════════════════════════════════════════════════════════════
 // CONTROL FACTORIES
 // ══════════════════════════════════════════════════════════════
+
+// Sets the CSS --fill custom property on the .slider-row wrap so the
+// fill bar reflects the current value position.
+function _setSliderFill(input) {
+  const mn  = parseFloat(input.min)   || 0;
+  const mx  = parseFloat(input.max)   || 1;
+  const val = parseFloat(input.value) || 0;
+  const pct = Math.max(0, Math.min(100, (val - mn) / (mx - mn) * 100)).toFixed(1);
+  const wrap = input.closest('.slider-row');
+  if (wrap) wrap.style.setProperty('--fill', pct + '%');
+}
+
 function mkSlider({ id, label, min, max, step, key, decimals=0, onChange }) {
-  const wrap  = document.createElement('div'); wrap.className = 'control-row';
-  const lbl   = document.createElement('label'); lbl.htmlFor = id;
-  lbl.appendChild(document.createTextNode(label));
-  const val   = document.createElement('span'); val.className = 'val';
-  val.textContent = (+state[key]).toFixed(decimals); lbl.appendChild(val);
+  const wrap  = document.createElement('div');
+  wrap.className = 'control-row slider-row';
+
+  const lbl = document.createElement('span');
+  lbl.className = 'ctrl-label';
+  lbl.textContent = label;
+
+  const valEl = document.createElement('span');
+  valEl.className = 'val';
+  valEl.textContent = (+state[key]).toFixed(decimals);
+
   const input = document.createElement('input');
-  input.type='range'; input.id=id; input.min=min; input.max=max; input.step=step; input.value=state[key];
+  input.type  = 'range';
+  input.id    = id;
+  input.min   = min;
+  input.max   = max;
+  input.step  = step;
+  input.value = state[key];
+
   input.addEventListener('input', () => {
     state[key] = parseFloat(input.value);
-    val.textContent = state[key].toFixed(decimals);
+    valEl.textContent = state[key].toFixed(decimals);
+    _setSliderFill(input);
     if (onChange) onChange(state[key]); else redraw();
   });
-  wrap.appendChild(lbl); wrap.appendChild(input);
+
+  wrap.appendChild(lbl);
+  wrap.appendChild(valEl);
+  wrap.appendChild(input);
+
+  // Set initial fill after appending so closest() works
+  requestAnimationFrame(() => _setSliderFill(input));
   return wrap;
 }
 
@@ -1337,12 +1290,11 @@ function mkTextBaseControl(prefix) {
   togRow.appendChild(seg); wrap.appendChild(togRow);
 
   // Opacity slider
-  const opRow = document.createElement('div'); opRow.className = 'control-row';
-  const opLbl = document.createElement('label'); opLbl.htmlFor = `ctrl-${prefix}-text-op`;
-  opLbl.appendChild(document.createTextNode('Opacity'));
+  const opRow = document.createElement('div'); opRow.className = 'control-row slider-row';
+  const opLbl = document.createElement('span'); opLbl.className = 'ctrl-label';
+  opLbl.textContent = 'Opacity';
   const opVal = document.createElement('span'); opVal.className = 'val';
   opVal.textContent = Math.round((state[opKey] ?? 1) * 100) + '%';
-  opLbl.appendChild(opVal);
   const opSlider = document.createElement('input');
   opSlider.type = 'range'; opSlider.id = `ctrl-${prefix}-text-op`;
   opSlider.min = '0'; opSlider.max = '1'; opSlider.step = '0.01';
@@ -1350,10 +1302,13 @@ function mkTextBaseControl(prefix) {
   opSlider.addEventListener('input', () => {
     state[opKey] = parseFloat(opSlider.value);
     opVal.textContent = Math.round(state[opKey] * 100) + '%';
+    _setSliderFill(opSlider);
     applyTextAdaptation();
     updateOverlays();
   });
-  opRow.appendChild(opLbl); opRow.appendChild(opSlider); wrap.appendChild(opRow);
+  opRow.appendChild(opLbl); opRow.appendChild(opVal); opRow.appendChild(opSlider);
+  requestAnimationFrame(() => _setSliderFill(opSlider));
+  wrap.appendChild(opRow);
   return wrap;
 }
 
@@ -1393,62 +1348,368 @@ function rebuildCtSwatches() {
   });
 }
 
+// Rebuild the two visual palette gradient-bar swatches in Color & Theme section.
+// Called after theme/colorMode changes so the correct warm/cool pair is shown.
+function rebuildCtPaletteSwatches() {
+  const existing = document.getElementById('ct-pal-swatches');
+  if (!existing) return;
+  const shapeLbl = document.getElementById('ct-shape-grad-label');
+  if (!shapeLbl) return;
+  const ct = shapeLbl.parentElement;
+
+  existing.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'ct-pal-swatches';
+  wrap.className = 'control-row';
+  const swLabel = document.createElement('label'); swLabel.textContent = 'Palette';
+  wrap.appendChild(swLabel);
+
+  const warmKey = state.colorMode === 'light' ? 'marketingWarmLight' : 'marketingWarm';
+  const coolKey = state.colorMode === 'light' ? 'arctic' : 'marketingCool';
+
+  [warmKey, coolKey].forEach(key => {
+    const p = PALETTES[key];
+    if (!p) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ct-palette-swatch' + (state.palette === key ? ' active' : '');
+    btn.title = p.label;
+    if (p.stops) {
+      const css = p.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
+      btn.style.background = `linear-gradient(90deg, ${css})`;
+    }
+    btn.addEventListener('click', () => {
+      selectPalette(key);
+      wrap.querySelectorAll('.ct-palette-swatch').forEach(b => b.classList.toggle('active', b === btn));
+    });
+    wrap.appendChild(btn);
+  });
+
+  ct.insertBefore(wrap, shapeLbl);
+}
+
+// Initial build: creates the #ct-pal-swatches element for the first time
+function _initCtPaletteSwatches(ct) {
+  const wrap = document.createElement('div');
+  wrap.id = 'ct-pal-swatches';
+  wrap.className = 'control-row';
+  const swLabel = document.createElement('label'); swLabel.textContent = 'Palette';
+  wrap.appendChild(swLabel);
+
+  const warmKey = state.colorMode === 'light' ? 'marketingWarmLight' : 'marketingWarm';
+  const coolKey = state.colorMode === 'light' ? 'arctic' : 'marketingCool';
+
+  [warmKey, coolKey].forEach(key => {
+    const p = PALETTES[key];
+    if (!p) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ct-palette-swatch' + (state.palette === key ? ' active' : '');
+    btn.title = p.label;
+    if (p.stops) {
+      const css = p.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
+      btn.style.background = `linear-gradient(90deg, ${css})`;
+    }
+    btn.addEventListener('click', () => {
+      selectPalette(key);
+      wrap.querySelectorAll('.ct-palette-swatch').forEach(b => b.classList.toggle('active', b === btn));
+    });
+    wrap.appendChild(btn);
+  });
+
+  const shapeLbl = ct.querySelector('#ct-shape-grad-label');
+  if (shapeLbl) ct.insertBefore(wrap, shapeLbl);
+  else ct.appendChild(wrap);
+}
+
 function buildColorThemeSection(scroll) {
   const sec = mkSection('Color & Theme');
+  const ct = sec.content;
 
-  const row = document.createElement('div');
-  row.className = 'color-theme-row';
+  // ── 1. Warm / Cool theme toggle ───────────────────────────
+  ct.appendChild(mkSegmented({
+    id: 'ctrl-theme', label: 'Theme', key: 'theme',
+    options: [['warm', 'Warm'], ['cool', 'Cool']],
+    onChange: (v) => {
+      state.theme = v;
 
-  // ── Left: swatch grid ─────────────────────────────────────
-  const swatchWrap = document.createElement('div');
-  swatchWrap.id = 'ct-swatch-container';
-  swatchWrap.className = 'ct-swatches';
+      // Reset palette to first one in the new theme
+      const firstPal = Object.entries(PALETTES).find(([, p]) => p.tone === v);
+      if (firstPal) { state.palette = firstPal[0]; applyPalette(firstPal[0]); }
 
-  // ── Right: Light / Dark mode buttons ─────────────────────
-  const modeCol = document.createElement('div');
-  modeCol.id = 'ct-mode-col';
-  modeCol.className = 'ct-mode-col';
+      // Set stroke style from theme
+      state.imageStrokeStyle = (v === 'cool') ? 'frosty' : 'marketing';
 
+      // Reset BG gradient if it belongs to the wrong theme
+      if (state.bgGradientMode && state.bgGradientPreset) {
+        const currentBgTheme = BG_GRADIENTS[state.bgGradientPreset]?.theme;
+        if (currentBgTheme !== v) {
+          const firstBg = Object.entries(BG_GRADIENTS).find(([, bg]) => bg.theme === v);
+          if (firstBg) {
+            state.bgGradientPreset = firstBg[0];
+            state.bgGradientStops  = JSON.parse(JSON.stringify(firstBg[1].stops));
+            state.bgGradientDir    = firstBg[1].dir || 'vertical';
+          } else {
+            state.bgGradientMode = false;
+          }
+        }
+      }
+
+      // Reset solid BG color to a mid-range swatch in the new theme
+      const newBgs = getActiveBgPresets();
+      if (newBgs.length && !newBgs.some(b => b.color.toLowerCase() === state.bgColor.toLowerCase())) {
+        state.bgColor = newBgs[Math.floor(newBgs.length / 2)].color;
+        const bgPicker = document.getElementById('ctrl-bgcolor');
+        if (bgPicker) bgPicker.value = state.bgColor;
+      }
+
+      // update circle borders
+      circleRow.querySelectorAll('[data-theme-circle]').forEach(b =>
+        b.style.borderColor = b.dataset.themeCircle === v ? '#fff' : 'transparent');
+
+      syncTheme(); syncPaletteSelect(); renderStopList(); updateOverlays(); redraw();
+    },
+  }));
+
+  // ── 2 theme circles ──────────────────────────────────────
+  const circleRow = document.createElement('div');
+  circleRow.style.cssText = 'display:flex;gap:8px;margin:10px 0 4px;';
+
+  [
+    { key: 'warm', color: '#F66A24', label: 'Warm' },
+    { key: 'cool', color: '#66A8FF', label: 'Cool' },
+  ].forEach(({ key, color, label }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = label;
+    btn.dataset.themeCircle = key;
+    btn.style.cssText = `
+      width:22px;height:22px;border-radius:50%;
+      background:${color};border:2px solid transparent;
+      padding:0;cursor:pointer;transition:border-color 0.15s,transform 0.12s;
+      flex-shrink:0;outline:none;
+    `;
+    if (state.theme === key) btn.style.borderColor = '#fff';
+    btn.addEventListener('click', () => {
+      const v = key;
+      state.theme = v;
+      const firstPal = Object.entries(PALETTES).find(([, p]) => p.tone === v);
+      if (firstPal) { state.palette = firstPal[0]; applyPalette(firstPal[0]); }
+      state.imageStrokeStyle = (v === 'cool') ? 'frosty' : 'marketing';
+      if (state.bgGradientMode && state.bgGradientPreset) {
+        const currentBgTheme = BG_GRADIENTS[state.bgGradientPreset]?.theme;
+        if (currentBgTheme !== v) {
+          const firstBg = Object.entries(BG_GRADIENTS).find(([, bg]) => bg.theme === v);
+          if (firstBg) {
+            state.bgGradientPreset = firstBg[0];
+            state.bgGradientStops  = JSON.parse(JSON.stringify(firstBg[1].stops));
+            state.bgGradientDir    = firstBg[1].dir || 'vertical';
+          } else { state.bgGradientMode = false; }
+        }
+      }
+      const newBgs = getActiveBgPresets();
+      if (newBgs.length && !newBgs.some(b => b.color.toLowerCase() === state.bgColor.toLowerCase())) {
+        state.bgColor = newBgs[Math.floor(newBgs.length / 2)].color;
+        const bgPicker = document.getElementById('ctrl-bgcolor');
+        if (bgPicker) bgPicker.value = state.bgColor;
+      }
+      // update circle borders
+      circleRow.querySelectorAll('[data-theme-circle]').forEach(b =>
+        b.style.borderColor = b.dataset.themeCircle === v ? '#fff' : 'transparent');
+      syncTheme(); syncPaletteSelect(); renderStopList(); updateOverlays(); redraw();
+    });
+    circleRow.appendChild(btn);
+  });
+
+  ct.appendChild(circleRow);
+
+  // ── 2. Light / Dark mode segmented ───────────────────────
+  const modeRow = document.createElement('div'); modeRow.className = 'control-row';
+  const modeLbl = document.createElement('label'); modeLbl.textContent = 'Mode';
+  modeRow.appendChild(modeLbl);
+  const modeSeg = document.createElement('div'); modeSeg.className = 'segmented'; modeSeg.id = 'ct-mode-col';
   [['dark', 'Dark'], ['light', 'Light']].forEach(([val, label]) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'ct-mode-btn' + (state.colorMode === val ? ' active' : '');
+    btn.className = 'ct-mode-btn seg-btn' + (state.colorMode === val ? ' active' : '');
     btn.dataset.mode = val;
+    btn.dataset.value = val;
     btn.textContent = label;
     btn.addEventListener('click', () => {
       if (state.colorMode === val) return;
       state.colorMode = val;
-
-      // Sync mode button active states
-      modeCol.querySelectorAll('.ct-mode-btn').forEach(b =>
+      modeSeg.querySelectorAll('.ct-mode-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.mode === val));
-
-      // Auto-select a bgColor appropriate for the new mode
+      // Auto-select palette appropriate for new mode
+      const themePalKey = state.theme === 'warm'
+        ? (val === 'dark' ? 'marketingWarm' : 'marketingWarmLight')
+        : (val === 'dark' ? 'marketingCool' : 'arctic');
+      if (PALETTES[themePalKey]) selectPalette(themePalKey);
+      applyPalette(state.palette);
       const newPresets = getActiveBgPresets();
       if (newPresets.length) {
-        // dark → pick a dark swatch (first = darkest for dark-keyed arrays), light → pick lightest
-        const idx = val === 'dark' ? 0 : 0; // both ordered from dark→light for dark, light→dark for light
-        state.bgColor = newPresets[idx].color;
+        state.bgColor = newPresets[0].color;
         const colorEl = document.getElementById('ctrl-bgcolor');
         if (colorEl) colorEl.value = state.bgColor;
         onBgChanged();
       }
-
-      // Rebuild both swatch lists
-      rebuildCtSwatches();
       rebuildBgSwatches();
+      rebuildCtSwatches();
+      syncTheme();
       redraw();
     });
-    modeCol.appendChild(btn);
+    modeSeg.appendChild(btn);
   });
+  modeRow.appendChild(modeSeg);
+  ct.appendChild(modeRow);
 
-  row.appendChild(swatchWrap);
-  row.appendChild(modeCol);
-  sec.content.appendChild(row);
+  // ── 3. Palette swatches row (hidden; required for syncPaletteSelect / syncTheme) ─
+  // The full palette-sw row is kept in the DOM for JS compatibility,
+  // but not displayed — visual selection is done via ct-palette-swatch gradient bars below.
+  const palRow = document.createElement('div');
+  palRow.className = 'palette-row';
+  palRow.id = 'ctrl-palette';
+  palRow.style.display = 'none'; // hidden — ct-palette-swatches show the visual
+  Object.entries(PALETTES).forEach(([key, p]) => {
+    if (!p.tone) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.value = key;
+    btn.title = p.label;
+    btn.className = 'palette-sw' + (state.palette === key ? ' active' : '');
+    btn.style.display = (p.tone === state.theme) ? '' : 'none';
+    const sw = document.createElement('span'); sw.className = 'palette-sw-fill';
+    if (p.stops) {
+      const css = p.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
+      sw.style.background = `linear-gradient(90deg, ${css})`;
+    }
+    const cap = document.createElement('span'); cap.className = 'palette-sw-label'; cap.textContent = p.label;
+    btn.appendChild(sw); btn.appendChild(cap);
+    btn.addEventListener('click', () => selectPalette(key));
+    palRow.appendChild(btn);
+  });
+  ct.appendChild(palRow);
+
+  // ── 4. Shape Gradient sublabel + gradient controls ─────────
+  const shapeLbl = mkSubLabel('Shape Gradient');
+  shapeLbl.id = 'ct-shape-grad-label';
+  ct.appendChild(shapeLbl);
+
+  // Build the gradient bar, stop list, actions, shuffle inside ct
+  buildGradientSection(ct);
+
+  // ── 6. Background sublabel + bg controls ──────────────────
+  ct.appendChild(mkSubLabel('Background'));
+
+  // Solid / Gradient segmented toggle
+  ct.appendChild(mkSegmented({
+    id: 'ctrl-bg-mode', label: 'BG Type', key: 'bgGradientMode',
+    options: [['solid', 'Solid'], ['gradient', 'Gradient']],
+    onChange: (v) => {
+      state.bgGradientMode = (v === 'gradient');
+      const sg = document.getElementById('bg-solid-group');
+      const gg = document.getElementById('bg-grad-group');
+      if (sg) sg.style.display = state.bgGradientMode ? 'none' : '';
+      if (gg) gg.style.display = state.bgGradientMode ? '' : 'none';
+      onBgChanged();
+      redraw();
+    },
+  }));
+  // Fix: state.bgGradientMode is boolean, segmented uses string values — patch the segmented key to use string
+  // The mkSegmented will read state['bgGradientMode'] which is boolean; we need string matching.
+  // Override: re-sync the newly created segmented to reflect boolean state correctly.
+  setTimeout(() => {
+    const bgModeSeg = document.getElementById('ctrl-bg-mode');
+    if (bgModeSeg) {
+      const v = state.bgGradientMode ? 'gradient' : 'solid';
+      bgModeSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === v));
+    }
+  }, 0);
+
+  // BG Solid group
+  const bgSolidGroup = document.createElement('div');
+  bgSolidGroup.id = 'bg-solid-group';
+  bgSolidGroup.style.display = state.bgGradientMode ? 'none' : '';
+  bgSolidGroup.appendChild(mkColor({
+    id: 'ctrl-bgcolor', label: 'Background Colour', key: 'bgColor',
+    onChange: () => { onBgChanged(); rebuildBgSwatches(); rebuildCtSwatches(); },
+  }));
+  // BG swatch container (flat colour presets)
+  const bgSwatchWrap = document.createElement('div'); bgSwatchWrap.className = 'control-row';
+  const bgSwatchRow  = document.createElement('div'); bgSwatchRow.className = 'bg-swatch-row'; bgSwatchRow.id = 'bg-swatch-container';
+  bgSwatchWrap.appendChild(bgSwatchRow);
+  bgSolidGroup.appendChild(bgSwatchWrap);
+  ct.appendChild(bgSolidGroup);
+
+  // BG Gradient group
+  const bgGradGroup = document.createElement('div');
+  bgGradGroup.id = 'bg-grad-group';
+  bgGradGroup.style.display = state.bgGradientMode ? '' : 'none';
+  _buildBgGradPresets(bgGradGroup);
+  ct.appendChild(bgGradGroup);
+
+  // Hidden container required by rebuildCtSwatches / syncTheme (provides colour luma logic etc)
+  const ctSwatchHidden = document.createElement('div');
+  ctSwatchHidden.id = 'ct-swatch-container';
+  ctSwatchHidden.style.display = 'none';
+  ct.appendChild(ctSwatchHidden);
+
   scroll.appendChild(sec.sec);
 
   // Populate swatches on first build
   rebuildCtSwatches();
+  rebuildBgSwatches();
+}
+
+// Helper: builds BG gradient preset buttons + flip toggle into a container element
+function _buildBgGradPresets(container) {
+  const gradWrap = document.createElement('div'); gradWrap.className = 'control-row';
+  const gradRow  = document.createElement('div'); gradRow.className = 'bg-grad-row'; gradRow.id = 'bg-grad-container';
+
+  // "Solid" reset button is omitted here — mode switching is done by ctrl-bg-mode segmented
+  // One button per BG_GRADIENTS entry
+  Object.entries(BG_GRADIENTS).forEach(([key, preset]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bg-grad-btn' + (state.bgGradientMode && state.bgGradientPreset === key ? ' active' : '');
+    btn.dataset.key = key;
+    btn.title = preset.label;
+    btn.style.display = (!preset.theme || preset.theme === state.theme) ? '' : 'none';
+
+    const css = preset.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
+    const sw  = document.createElement('span'); sw.className = 'bg-grad-swatch';
+    sw.style.background = `linear-gradient(to bottom, ${css})`;
+    const cap = document.createElement('span'); cap.textContent = preset.label;
+    btn.appendChild(sw); btn.appendChild(cap);
+
+    btn.addEventListener('click', () => {
+      state.bgGradientMode   = true;
+      state.bgGradientPreset = key;
+      state.bgGradientStops  = JSON.parse(JSON.stringify(preset.stops));
+      state.bgGradientDir    = preset.dir || 'vertical';
+      _syncBgGradBtnsInner(gradRow);
+      onBgChanged();
+      redraw();
+    });
+    gradRow.appendChild(btn);
+  });
+
+  gradWrap.appendChild(gradRow);
+  container.appendChild(gradWrap);
+
+  // BG gradient flip toggle
+  const bgFlipRow = mkToggle({
+    id: 'ctrl-bg-grad-flip', label: 'Flip BG Gradient', key: 'bgGradientFlip',
+    onChange: () => { onBgChanged(); redraw(); },
+  });
+  bgFlipRow.id = 'bg-grad-flip-row';
+  container.appendChild(bgFlipRow);
+}
+
+function _syncBgGradBtnsInner(gradRow) {
+  gradRow.querySelectorAll('.bg-grad-btn').forEach(b => {
+    b.classList.toggle('active', state.bgGradientMode && state.bgGradientPreset === b.dataset.key);
+  });
 }
 
 function buildGUI() {
@@ -1647,17 +1908,8 @@ function buildGUI() {
   cardCirc.addEventListener('click', () => switchType('circular'));
   cardImg.addEventListener('click',  () => switchType('image'));
 
-  buildGradientSection(graphSec.content);
-
   // ── Style / Opacity / Blur ─────────────────────────────────
   graphSec.content.appendChild(mkSubLabel('Style'));
-
-  // Background
-  graphSec.content.appendChild(mkColor({
-    id:'ctrl-bgcolor', label:'Background', key:'bgColor',
-    onChange: () => { onBgChanged(); rebuildBgSwatches(); },
-  }));
-  buildBgPresetsUI(graphSec.content);
 
   // ─ Global Opacity ABOVE Opacity slider ─────────────────────
   graphSec.content.appendChild(mkToggle({ id:'ctrl-global-op', label:'Global Opacity (Blend Group)', key:'globalOpacity' }));
@@ -1831,7 +2083,8 @@ function syncControlsToState() {
   ].forEach(([id, key, dec]) => {
     const el = document.getElementById(id); if (!el) return;
     el.value = state[key];
-    const b  = el.closest('.control-row')?.querySelector('.val');
+    _setSliderFill(el);
+    const b = el.closest('.slider-row')?.querySelector('.val');
     if (b) b.textContent = (+state[key]).toFixed(dec);
   });
 
@@ -1863,6 +2116,24 @@ function syncControlsToState() {
     seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === String(state[key])));
   });
 
+  // ctrl-bg-mode — boolean bgGradientMode → 'solid' | 'gradient' string values
+  const bgModeSeg = document.getElementById('ctrl-bg-mode');
+  if (bgModeSeg) {
+    const v = state.bgGradientMode ? 'gradient' : 'solid';
+    bgModeSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === v));
+    const sg = document.getElementById('bg-solid-group');
+    const gg = document.getElementById('bg-grad-group');
+    if (sg) sg.style.display = state.bgGradientMode ? 'none' : '';
+    if (gg) gg.style.display = state.bgGradientMode ? '' : 'none';
+  }
+
+  // ct-mode-col (colorMode)
+  const ctMode = document.getElementById('ct-mode-col');
+  if (ctMode) {
+    ctMode.querySelectorAll('.ct-mode-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === (state.colorMode || 'dark')));
+  }
+
   // Color pickers
   [
     ['ctrl-bgcolor',      'bgColor'],
@@ -1880,7 +2151,8 @@ function syncControlsToState() {
   const fillOp = document.getElementById('ctrl-hl-fill-op');
   if (fillOp) {
     fillOp.value = state.headlineFillOpacity;
-    const b = fillOp.closest('.control-row')?.querySelector('.val');
+    _setSliderFill(fillOp);
+    const b = fillOp.closest('.slider-row')?.querySelector('.val');
     if (b) b.textContent = (+state.headlineFillOpacity).toFixed(2);
   }
 
@@ -1903,6 +2175,9 @@ function syncControlsToState() {
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.checked = state[key]; });
 
   updateAspectLabel(state.aspectRatio);
+
+  // Update slider fill CSS custom properties for all range inputs
+  document.querySelectorAll('input[type="range"]').forEach(_setSliderFill);
 
   // Sync theme toggle and all filtered sub-menus
   syncTheme();

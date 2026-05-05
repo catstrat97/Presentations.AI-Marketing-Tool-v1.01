@@ -18,17 +18,17 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #09090b;
-  --surface: #111115;
-  --bg-panel: #09090b;
-  --border: #27272a;
+  --bg: #0a0a0a;
+  --surface: #111113;
+  --bg-panel: #0a0a0a;
+  --border: #222226;
   --text: #fafafa;
-  --text-dim: #a1a1aa;
+  --text-dim: #71717a;
   --accent: #fafafa;
   --accent-fg: #09090b;
-  --ring: rgba(250, 250, 250, 0.2);
-  --input-bg: #09090b;
-  --hover-bg: #27272a;
+  --ring: rgba(250, 250, 250, 0.15);
+  --input-bg: #111113;
+  --hover-bg: #2a2a2e;
   --font: 'Satoshi', system-ui, sans-serif;
   --innovator: 'Innovators Grotesk', sans-serif;
 }
@@ -209,7 +209,7 @@ html, body {
 
 /* ── Side Panel ───────────────────────────────────────────── */
 #panel {
-  width: 320px;
+  width: 260px;
   height: 100vh;
   background: var(--bg-panel);
   border-left: 1px solid var(--border);
@@ -221,7 +221,7 @@ html, body {
 }
 
 #panel-header {
-  padding: 16px 20px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   display: flex;
@@ -239,7 +239,7 @@ html, body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 20px 24px;
+  padding: 0 14px 24px;
 }
 
 #panel-scroll::-webkit-scrollbar { width: 4px; }
@@ -248,7 +248,7 @@ html, body {
 
 /* ── Sections ─────────────────────────────────────────────── */
 .section {
-  padding: 20px 0;
+  padding: 18px 0;
   border-bottom: 1px solid var(--border);
 }
 .section:last-child {
@@ -265,13 +265,18 @@ html, body {
   user-select: none;
 }
 .section-label {
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 .section-label.sub {
   margin-bottom: 10px;
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-dim);
 }
 .section-content {
@@ -366,7 +371,7 @@ html, body {
 
 /* ── Controls ─────────────────────────────────────────────── */
 .control-row {
-  margin-bottom: 16px;
+  margin-bottom: 3px;
 }
 
 /* Action button used inside control rows (e.g. "New Seed") */
@@ -391,42 +396,91 @@ html, body {
 .control-row label {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
-  color: var(--text);
-  margin-bottom: 8px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
 }
 
 .control-row .val {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
-/* Slider */
-input[type=range] {
-  appearance: none;
+/* ── Slider Row (DialKit full-row fill) ──────────────────── */
+.slider-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 36px;
+  background: var(--surface);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: ew-resize;
+  margin-bottom: 3px;
+}
+
+/* Fill bar — grows from left based on --fill custom property */
+.slider-row::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: var(--fill, 0%);
+  height: 100%;
+  background: #252528;
+  border-radius: 6px 0 0 6px;
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+
+.slider-row .ctrl-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.slider-row .val {
+  font-size: 12px;
+  color: var(--text-dim);
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+.slider-row input[type="range"] {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  opacity: 0;
+  cursor: ew-resize;
+  z-index: 2;
+  margin: 0; padding: 0;
   -webkit-appearance: none;
-  width: 100%;
-  height: 4px;
+  appearance: none;
+}
+
+/* Fallback for any stray range inputs NOT inside .slider-row (e.g. stop sliders in modals) */
+input[type="range"]:not(.slider-row input) {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
   background: var(--border);
   border-radius: 2px;
   outline: none;
-}
-
-input[type=range]::-webkit-slider-thumb {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 16px; height: 16px;
-  border-radius: 50%;
-  background: var(--accent);
   cursor: pointer;
-  border: 2px solid var(--bg-panel);
-  box-shadow: 0 0 0 1px var(--border);
-  transition: transform 0.1s;
+  width: 100%;
 }
-
-input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
 
 /* Select & Number */
 select, input[type="number"], .text-input {
@@ -486,7 +540,9 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 .toggle {
@@ -531,7 +587,7 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
 
 /* ── Footer ───────────────────────────────────────────────── */
 #panel-footer {
-  padding: 16px 20px;
+  padding: 12px 14px;
   border-top: 1px solid var(--border);
   display: flex;
   gap: 8px;
@@ -560,7 +616,7 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
 .segmented {
   display: flex;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 20px;
   overflow: hidden;
   background: var(--input-bg);
 }
@@ -569,8 +625,8 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   background: transparent;
   color: var(--text-dim);
   border: none;
-  padding: 6px 0;
-  font-size: 12px;
+  padding: 5px 0;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -584,8 +640,8 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   background: var(--hover-bg);
 }
 .seg-btn.active {
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: #2a2a2e;
+  color: #fff;
 }
 .seg-btn svg {
   display: block;
@@ -1073,4 +1129,48 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   object-fit: cover;
   display: block;
   pointer-events: none;
+}
+
+/* ── CT Palette Gradient Swatches (Color & Theme section) ─── */
+.ct-palette-swatch {
+  width: 100%;
+  height: 40px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  overflow: hidden;
+  display: block;
+}
+.ct-palette-swatch:hover {
+  border-color: var(--text-dim);
+}
+.ct-palette-swatch.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ── BG Mode groups (solid / gradient visibility) ─────────── */
+#bg-solid-group,
+#bg-grad-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Segmented grid (keep square corners in grid mode) ─────── */
+.segmented.grid {
+  border-radius: 6px;
+}
+.segmented.grid .seg-btn {
+  border-radius: 6px;
+}
+
+/* ── Toggle-row label sizing (explicit) ────────────────────── */
+.toggle-row label:first-child {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-bottom: 0;
 }
