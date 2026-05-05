@@ -1219,33 +1219,43 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   border-bottom: 1px solid var(--border) !important;
 }
 
-/* Folder title button — DialKit section header */
+/* Folder title button — section header */
 .tp-fldv_t,
 .tp-fld_t {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 14px 0 !important;
+  padding: 18px 0 16px !important;
   background: transparent !important;
   border: none !important;
   cursor: pointer !important;
   user-select: none !important;
   width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  line-height: 1 !important;
+  transition: color 0.15s !important;
 }
 
-/* Folder title text — the button's text node is the label */
+.tp-fldv_t:hover,
+.tp-fld_t:hover {
+  color: var(--text) !important;
+}
+
+/* Folder title text — prominent section label */
 .tp-fldv_t .tp-fldv_m,
 .tp-fld_t .tp-fld_m,
-.tp-fld_t > span {
-  font-size: 10px !important;
+.tp-fld_t > span,
+.tp-fld_t::before {
+  font-size: 13px !important;
   font-weight: 600 !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-  color: var(--text-dim) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: var(--text) !important;
   font-family: var(--font) !important;
 }
 
-/* Folder arrow/chevron */
+/* Folder arrow/chevron — clearer indicator */
 .tp-fldv_b,
 .tp-fld_b {
   color: var(--text-dim) !important;
@@ -1254,14 +1264,30 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   padding: 0 !important;
   display: flex !important;
   align-items: center !important;
+  justify-content: center !important;
+  width: 18px !important;
+  height: 18px !important;
+  opacity: 0.7 !important;
+  transition: opacity 0.15s, transform 0.2s !important;
 }
 
-/* Folder content area */
+.tp-fldv_t:hover .tp-fldv_b,
+.tp-fld_t:hover .tp-fld_b {
+  opacity: 1 !important;
+}
+
+/* Folder content area — clean inner padding */
 .tp-fldv_c,
 .tp-fld_c {
-  padding: 0 0 12px !important;
+  padding: 4px 0 20px !important;
   background: transparent !important;
   border: none !important;
+}
+
+/* Collapsed folder — no inner padding */
+.tp-fldv:not(.tp-fldv-expanded) .tp-fldv_c,
+.tp-fld:not(.tp-fld-expanded) .tp-fld_c {
+  padding: 0 !important;
 }
 
 /* Tweakpane inner blade containers — remove backgrounds */
@@ -1272,40 +1298,269 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   background: transparent !important;
 }
 
-/* Custom content injected via into() */
+/* ── Custom content injected via into() ──────────────────────
+   Establishes the spacing rhythm inside each folder.
+   Element spacing: 10px, sub-section spacing handled by mkSubLabel margins */
 .tp-custom {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding: 2px 0;
+  gap: 10px;
+  padding: 0;
+}
+
+/* Tighten control-row default margins inside Tweakpane folders */
+.tp-custom .control-row {
+  margin-bottom: 0;
+}
+
+.tp-custom .slider-row {
+  margin-bottom: 0;
+  height: 38px;
+}
+
+/* Sub-labels become subsection dividers with consistent spacing */
+.tp-custom .section-label.sub {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  opacity: 0.85;
+}
+
+.tp-custom .section-label.sub:first-child {
+  margin-top: 4px;
+}
+
+/* Toggle rows — consistent height + spacing */
+.tp-custom .toggle-row {
+  margin-bottom: 0;
+  min-height: 28px;
+  padding: 4px 0;
+}
+
+/* Color rows — consistent height */
+.tp-custom .color-row {
+  min-height: 38px;
+  padding: 6px 12px;
+}
+
+/* Standardize segmented control height */
+.tp-custom .segmented:not(.grid) {
+  min-height: 32px;
+}
+
+.tp-custom .segmented:not(.grid) .seg-btn {
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+/* Labels above controls — consistent typography */
+.tp-custom .control-row > label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 /* ── Theme Circles ─────────────────────────────────────────── */
 .theme-circle-row {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 12px;
-  padding-top: 4px;
+  padding: 6px 0 4px;
 }
 
 .theme-circle-btn {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--circle-color);
   border: 2px solid transparent;
   padding: 0;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.12s;
+  transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s;
   flex-shrink: 0;
   outline: none;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
 }
 
 .theme-circle-btn:hover {
-  transform: scale(1.15);
+  transform: scale(1.1);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.2);
 }
 
 .theme-circle-btn.active {
   border-color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
 }
+
+/* ── Section heading row inside Color & Theme — Theme label ── */
+.theme-section-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GLOBAL HIERARCHY POLISH
+   ══════════════════════════════════════════════════════════════ */
+
+/* Panel header — keep clean & minimal */
+#panel {
+  width: 280px;
+}
+
+#panel-header {
+  padding: 16px 18px;
+}
+
+#panel-header h1 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+#panel-header h2 {
+  display: none; /* redundant subtitle */
+}
+
+#panel-scroll {
+  padding: 0 18px 24px;
+}
+
+#panel-footer {
+  padding: 14px 18px;
+  gap: 10px;
+}
+
+#panel-footer .btn {
+  height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Comp cards — slightly more breathing room */
+.tp-custom .comp-cards {
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+.tp-custom .comp-card {
+  padding: 14px 6px;
+  border-radius: 8px;
+}
+
+.tp-custom .comp-card svg {
+  width: 32px;
+  height: 32px;
+}
+
+.tp-custom .comp-card span {
+  font-size: 11px;
+}
+
+/* Background swatches — even rounded squares */
+.tp-custom .bg-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.tp-custom .bg-swatch-row {
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* BG gradient buttons — consistent sizing */
+.tp-custom .bg-grad-btn {
+  padding: 8px;
+  border-radius: 8px;
+}
+
+/* Gradient bar — taller, more touchable */
+.tp-custom #grad-bar {
+  height: 32px;
+  border-radius: 8px;
+}
+
+.tp-custom .grad-bar-outer {
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+/* Curve preview — consistent rounded */
+.tp-custom #curve-preview {
+  border-radius: 8px;
+}
+
+/* Anchor grid — slightly bigger hit area */
+.tp-custom .anchor-grid {
+  width: 96px;
+  border-radius: 8px;
+}
+
+/* Action buttons inside controls — taller */
+.tp-custom .ctrl-btn {
+  height: 36px;
+  border-radius: 8px;
+}
+
+.tp-custom .btn.small {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+
+/* Text inputs / textareas — taller, comfortable */
+.tp-custom select,
+.tp-custom input[type="number"],
+.tp-custom .text-input {
+  height: 36px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.tp-custom .textarea-input {
+  height: auto;
+  min-height: 80px;
+  padding: 10px 12px;
+}
+
+/* File input — nicer presentation */
+.tp-custom input[type="file"] {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 6px 0;
+}
+
+/* Image preset / thumb pickers — consistent radius */
+.tp-custom .img-preset-btn,
+.tp-custom .img-thumb {
+  border-radius: 8px;
+}
+
+/* Presets section — sit comfortably above pane */
+.section:first-child {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section:first-child .section-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.preset-save-row { gap: 8px; }
+.preset-save-row .text-input { height: 34px; font-size: 12px; }
+.preset-save-row .seg-btn { height: 34px; border-radius: 8px; }
+.preset-chip { padding: 7px 8px 7px 12px; border-radius: 8px; }

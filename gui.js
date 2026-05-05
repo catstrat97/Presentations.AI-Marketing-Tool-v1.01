@@ -1767,6 +1767,12 @@ function buildGUI() {
   // ── Color & Theme ─────────────────────────────────────────
   const fTheme = pane.addFolder({ title: 'Color & Theme', expanded: false });
   into(fTheme, ct => {
+    // Theme label
+    const themeLbl = document.createElement('div');
+    themeLbl.className = 'theme-section-label';
+    themeLbl.textContent = 'Theme';
+    ct.appendChild(themeLbl);
+
     // 2 theme circles: warm (orange) + cool (blue)
     const circleRow = document.createElement('div');
     circleRow.className = 'theme-circle-row';
