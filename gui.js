@@ -9,15 +9,6 @@ function redraw() {
   renderCurvePreview();
 }
 
-// Sets --fill-pct CSS custom property so the slider track shows a filled portion
-function updateSliderFill(el) {
-  if (!el || el.type !== 'range') return;
-  const min = parseFloat(el.min) || 0;
-  const max = parseFloat(el.max) || 100;
-  const pct = Math.max(0, Math.min(100, ((parseFloat(el.value) - min) / (max - min)) * 100));
-  el.style.setProperty('--fill-pct', pct.toFixed(1) + '%');
-}
-
 // ══════════════════════════════════════════════════════════════
 // OVERLAY UPDATER
 // ══════════════════════════════════════════════════════════════
@@ -499,7 +490,6 @@ function renderStopList() {
       posSlider.step = '0.01'; posSlider.value = stop.stop;
       posSlider.className = 'stop-pos-slider';
       posSlider.disabled  = posFixed;
-      updateSliderFill(posSlider);
 
       const posVal = document.createElement('span');
       posVal.className = 'stop-pos-val';
@@ -509,7 +499,6 @@ function renderStopList() {
         const idx = state.gradientStops.findIndex(s => s === stop);
         if (idx >= 0) state.gradientStops[idx].stop = parseFloat(posSlider.value);
         posVal.textContent = parseFloat(posSlider.value).toFixed(2);
-        updateSliderFill(posSlider);
         if (mode === 'symmetrical') enforceSymmetrical();
         else if (mode === 'sync')   enforceSync();
         redraw();
@@ -770,19 +759,18 @@ function renderCurvePreview() {
 // ══════════════════════════════════════════════════════════════
 function mkSlider({ id, label, min, max, step, key, decimals=0, onChange }) {
   const wrap  = document.createElement('div'); wrap.className = 'control-row';
-  const lbl   = document.createElement('label'); lbl.htmlFor = id; lbl.textContent = label;
+  const lbl   = document.createElement('label'); lbl.htmlFor = id;
+  lbl.appendChild(document.createTextNode(label));
+  const val   = document.createElement('span'); val.className = 'val';
+  val.textContent = (+state[key]).toFixed(decimals); lbl.appendChild(val);
   const input = document.createElement('input');
   input.type='range'; input.id=id; input.min=min; input.max=max; input.step=step; input.value=state[key];
-  const val   = document.createElement('span'); val.className = 'val';
-  val.textContent = (+state[key]).toFixed(decimals);
   input.addEventListener('input', () => {
     state[key] = parseFloat(input.value);
     val.textContent = state[key].toFixed(decimals);
-    updateSliderFill(input);
     if (onChange) onChange(state[key]); else redraw();
   });
-  updateSliderFill(input);
-  wrap.appendChild(lbl); wrap.appendChild(input); wrap.appendChild(val);
+  wrap.appendChild(lbl); wrap.appendChild(input);
   return wrap;
 }
 
@@ -1786,9 +1774,6 @@ function syncControlsToState() {
   const hlWords = document.getElementById('ctrl-hl-words');
   if (hlWords) hlWords.value = state.headlineHighlightWords || '';
 
-  // Update slider fill percentages
-  document.querySelectorAll('input[type=range]').forEach(updateSliderFill);
-
   // Sliders — fill opacity
   const fillOp = document.getElementById('ctrl-hl-fill-op');
   if (fillOp) {
@@ -1831,7 +1816,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (initDefaults) Object.assign(state, initDefaults);
 
   buildGUI();
-  document.querySelectorAll('input[type=range]').forEach(updateSliderFill);
   updateAspectLabel(state.aspectRatio);
   renderGradientBar();
   renderStopList();
