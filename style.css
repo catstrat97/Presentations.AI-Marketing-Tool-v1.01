@@ -1174,3 +1174,138 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   font-weight: 500;
   margin-bottom: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   TWEAKPANE v3 — DialKit-style overrides
+   (Tweakpane v3 uses tp-fld_* class names, not tp-fldv_*)
+   ══════════════════════════════════════════════════════════════ */
+
+/* Pane outer container — transparent, no shadow/border */
+.tp-dfwv,
+.tp-cnt {
+  width: 100% !important;
+  position: static !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Root view — transparent */
+.tp-rotv,
+.tp-rot {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Root title — hidden (we use our own panel-header) */
+.tp-rotv_t,
+.tp-rot_t {
+  display: none !important;
+}
+
+/* Root content wrapper — no extra padding */
+.tp-rotv_c,
+.tp-rot_c {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+/* Folder view — with bottom divider */
+.tp-fldv,
+.tp-fld {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Folder title button — DialKit section header */
+.tp-fldv_t,
+.tp-fld_t {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 14px 0 !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  width: 100% !important;
+}
+
+/* Folder title text — the button's text node is the label */
+.tp-fldv_t .tp-fldv_m,
+.tp-fld_t .tp-fld_m,
+.tp-fld_t > span {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  font-family: var(--font) !important;
+}
+
+/* Folder arrow/chevron */
+.tp-fldv_b,
+.tp-fld_b {
+  color: var(--text-dim) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Folder content area */
+.tp-fldv_c,
+.tp-fld_c {
+  padding: 0 0 12px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Tweakpane inner blade containers — remove backgrounds */
+.tp-brkv, .tp-brk,
+.tp-lblv, .tp-lbl,
+.tp-sldv, .tp-sld,
+.tp-chdv, .tp-chd {
+  background: transparent !important;
+}
+
+/* Custom content injected via into() */
+.tp-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 2px 0;
+}
+
+/* ── Theme Circles ─────────────────────────────────────────── */
+.theme-circle-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-top: 4px;
+}
+
+.theme-circle-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--circle-color);
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s;
+  flex-shrink: 0;
+  outline: none;
+}
+
+.theme-circle-btn:hover {
+  transform: scale(1.15);
+}
+
+.theme-circle-btn.active {
+  border-color: #ffffff;
+}

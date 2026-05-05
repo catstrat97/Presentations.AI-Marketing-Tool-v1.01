@@ -591,9 +591,12 @@ function syncTheme() {
     });
   }
 
-  // Sync theme circle borders
-  document.querySelectorAll('[data-theme-circle]').forEach(b =>
-    b.style.borderColor = b.dataset.themeCircle === state.theme ? '#fff' : 'transparent');
+  // Sync theme circle borders (supports both class-based and inline-style approaches)
+  document.querySelectorAll('[data-theme-circle]').forEach(b => {
+    const isActive = b.dataset.themeCircle === state.theme;
+    b.classList.toggle('active', isActive);
+    b.style.borderColor = isActive ? '#fff' : 'transparent';
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1715,301 +1718,460 @@ function _syncBgGradBtnsInner(gradRow) {
 function buildGUI() {
   const scroll = document.getElementById('panel-scroll');
 
-  // ── Presets ───────────────────────────────────────────────
+  // ── Presets (above Tweakpane pane) ────────────────────────
   buildPresetsSection(scroll);
 
+  // ── Tweakpane pane ────────────────────────────────────────
+  const pane = new Tweakpane.Pane({ container: scroll });
+  window._pane = pane;
+
+  // Hide the Tweakpane root title bar (try both v3 naming variants)
+  requestAnimationFrame(() => {
+    const rotTitle = scroll.querySelector('.tp-rotv_t, .tp-rot_t, .tp-rot > .tp-fld_t');
+    if (rotTitle) rotTitle.style.display = 'none';
+  });
+
+  // Helper: inject custom DOM into a Tweakpane folder's content area
+  function into(folder, buildFn) {
+    const el = document.createElement('div');
+    el.className = 'tp-custom';
+    buildFn(el);
+    // Tweakpane v3 uses .tp-fld_c for folder content
+    const cnt = folder.element.querySelector('.tp-fld_c') ||
+                folder.element.querySelector('.tp-fldv_c') ||
+                folder.element;
+    cnt.appendChild(el);
+  }
+
   // ── Canvas ────────────────────────────────────────────────
-  const canvasSec = mkSection('Canvas');
-  canvasSec.content.appendChild(mkSegmented({
-    id:'ctrl-aspect', label:'Aspect Ratio', key:'aspectRatio',
-    options:[
-      ['1:1',    ICONS.asp1x1,   '1:1 — Square'],
-      ['4:5',    ICONS.asp4x5,   '4:5 — Portrait'],
-      ['16:9',   ICONS.asp16x9,  '16:9 — Landscape'],
-      ['9:16',   ICONS.asp9x16,  '9:16 — Story'],
-      ['1.91:1', ICONS.asp191x1, '1.91:1 — Wide'],
-    ],
-    onChange: v => {
-      updateAspectLabel(v);
-      const defaults = ASPECT_RATIO_DEFAULTS[v];
-      if (defaults) {
-        Object.assign(state, defaults);
-        syncControlsToState();
-        updateOverlays();
-      }
-      if (window._p5Resize) window._p5Resize();
-    },
-  }));
-  scroll.appendChild(canvasSec.sec);
+  const fCanvas = pane.addFolder({ title: 'Canvas', expanded: false });
+  into(fCanvas, ct => {
+    ct.appendChild(mkSegmented({
+      id: 'ctrl-aspect', label: 'Aspect Ratio', key: 'aspectRatio',
+      options: [
+        ['1:1',    ICONS.asp1x1,   '1:1 — Square'],
+        ['4:5',    ICONS.asp4x5,   '4:5 — Portrait'],
+        ['16:9',   ICONS.asp16x9,  '16:9 — Landscape'],
+        ['9:16',   ICONS.asp9x16,  '9:16 — Story'],
+        ['1.91:1', ICONS.asp191x1, '1.91:1 — Wide'],
+      ],
+      onChange: v => {
+        updateAspectLabel(v);
+        const defaults = ASPECT_RATIO_DEFAULTS[v];
+        if (defaults) { Object.assign(state, defaults); syncControlsToState(); updateOverlays(); }
+        if (window._p5Resize) window._p5Resize();
+      },
+    }));
+  });
 
-  // ── Color & Theme ────────────────────────────────────────
-  buildColorThemeSection(scroll);
-
-  // ── Graphics ─────────────────────────────────────────────
-  const graphSec = mkSection('Graphics', 'showGraphics');
-  graphSec.content.appendChild(mkSubLabel('Composition Setup', 0));
-
-  const cards    = document.createElement('div'); cards.className = 'comp-cards';
-  const cardRect = document.createElement('div'); cardRect.className = 'comp-card' + (state.compositionType==='rectangle'?' active':'');
-  cardRect.innerHTML = `<svg viewBox="0 0 24 24"><rect x="5" y="6" width="3" height="12" rx="1"/><rect x="10.5" y="3" width="3" height="15" rx="1"/><rect x="16" y="8" width="3" height="10" rx="1"/></svg><span>Rectangle</span>`;
-  const cardCirc = document.createElement('div'); cardCirc.className = 'comp-card' + (state.compositionType==='circular'?' active':'');
-  cardCirc.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="6" cy="14" r="3.5"/><circle cx="12" cy="7" r="3.5"/><circle cx="18" cy="11" r="3.5"/></svg><span>Circular</span>`;
-  const cardImg  = document.createElement('div'); cardImg.className = 'comp-card' + (state.compositionType==='image'?' active':'');
-  cardImg.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M3 16l4.5-4.5 3 3 3-4 4.5 5.5"/></svg><span>Image</span>`;
-  cards.appendChild(cardRect); cards.appendChild(cardCirc); cards.appendChild(cardImg);
-  graphSec.content.appendChild(cards);
-
-  // Rectangle Group
-  const groupRect = document.createElement('div'); groupRect.id = 'group-rect'; groupRect.className = 'ctrl-group' + (state.compositionType==='rectangle'?' active':'');
-  groupRect.appendChild(mkSlider({ id:'ctrl-count',    label:'Rectangle Count',    min:2, max:120, step:1,   key:'rectCount' }));
-  groupRect.appendChild(mkSlider({ id:'ctrl-spacing',  label:'Item Spacing',        min:0, max:30, step:0.5, key:'spacing', decimals:1 }));
-  groupRect.appendChild(mkToggle({ id:'ctrl-symmetry', label:'Symmetry (size)',     key:'symmetry' }));
-  groupRect.appendChild(mkToggle({ id:'ctrl-mirror-y', label:'Mirror Axis',         key:'mirrorY'  }));
-  groupRect.appendChild(mkSegmented({ id:'ctrl-baseline', label:'Baseline Direction', key:'baseline',
-    options:[
-      ['bottom', ICONS.baseBottom, 'Bottom — grow upward'],
-      ['top',    ICONS.baseTop,    'Top — grow downward'],
-      ['left',   ICONS.baseLeft,   'Left — grow rightward'],
-      ['right',  ICONS.baseRight,  'Right — grow leftward'],
-    ],
-  }));
-
-  // Circular Group
-  const groupCirc = document.createElement('div'); groupCirc.id = 'group-circ'; groupCirc.className = 'ctrl-group' + (state.compositionType==='circular'?' active':'');
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',   label:'Circle Count',  min:2,  max:40,   step:1,  key:'circleCount' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',       label:'Max Diameter',  min:50, max:2000, step:10, key:'circleDiameter' }));
-  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-stagger-auto', label:'Auto Stagger (diameter ÷ 2.69)', key:'circleStaggerAuto' }));
-  groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align', label:'Anchor Position', key:'circleAlignment' }));
-  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',      label:'Mirror X & Y Axis',             key:'circleMirrorXY'   }));
-  groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor', label:'Flip Anchor — smallest at boundary', key:'circleFlipAnchor' }));
-  groupCirc.appendChild(mkSubLabel('Text-Aware Positioning'));
-  groupCirc.appendChild(mkToggle({
-    id:'ctrl-circle-text-link', label:'Link X to Headline', key:'circleTextLink',
-    onChange: () => {
-      document.getElementById('ctrl-circle-text-padding').closest('.control-row').style.display =
-        state.circleTextLink ? '' : 'none';
-      redraw();
-    },
-  }));
-  const textPadRow = mkSlider({ id:'ctrl-circle-text-padding', label:'Text Gap (extra px)', min:-200, max:400, step:10, key:'circleTextPadding' });
-  textPadRow.style.display = state.circleTextLink ? '' : 'none';
-  groupCirc.appendChild(textPadRow);
-  groupCirc.appendChild(mkSubLabel('Fine Tune'));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
-  groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
-
-  // Image Group — preset picker + opacity
-  const groupImg = document.createElement('div'); groupImg.id = 'group-img-comp'; groupImg.className = 'ctrl-group' + (state.compositionType==='image'?' active':'');
-
-  // Preset picker: two image thumbnails
-  const imgPickerRow = document.createElement('div'); imgPickerRow.className = 'control-row';
-  const imgPickerLabel = document.createElement('label'); imgPickerLabel.textContent = 'Preset';
-  const imgPickerWrap = document.createElement('div'); imgPickerWrap.className = 'img-preset-picker';
-
-  [['dark', 'Background%20Presets/BG-Dark.png', 'Dark'], ['light', 'Background%20Presets/BG-Light.png', 'Light']].forEach(([key, src, label]) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'img-preset-btn' + (state.imagePresetSelected === key ? ' active' : '');
-    btn.title = label;
-    btn.dataset.key = key;
-    const thumb = document.createElement('img');
-    thumb.src = src; thumb.alt = label;
-    btn.appendChild(thumb);
-    btn.addEventListener('click', () => {
-      state.imagePresetSelected = key;
-      imgPickerWrap.querySelectorAll('.img-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.key === key));
-      if (window._p5Redraw) window._p5Redraw();
+  // ── Color & Theme ─────────────────────────────────────────
+  const fTheme = pane.addFolder({ title: 'Color & Theme', expanded: false });
+  into(fTheme, ct => {
+    // 2 theme circles: warm (orange) + cool (blue)
+    const circleRow = document.createElement('div');
+    circleRow.className = 'theme-circle-row';
+    [
+      { key: 'warm', color: '#F66A24', label: 'Warm' },
+      { key: 'cool', color: '#66A8FF', label: 'Cool' },
+    ].forEach(({ key, color, label }) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.title = label;
+      btn.dataset.themeCircle = key;
+      btn.className = 'theme-circle-btn' + (state.theme === key ? ' active' : '');
+      btn.style.setProperty('--circle-color', color);
+      btn.addEventListener('click', () => _applyTheme(key));
+      circleRow.appendChild(btn);
     });
-    imgPickerWrap.appendChild(btn);
+    ct.appendChild(circleRow);
+
+    // Light / Dark mode segmented
+    const modeRow = document.createElement('div'); modeRow.className = 'control-row';
+    const modeLbl = document.createElement('label'); modeLbl.textContent = 'Mode';
+    modeRow.appendChild(modeLbl);
+    const modeSeg = document.createElement('div'); modeSeg.className = 'segmented'; modeSeg.id = 'ct-mode-col';
+    [['dark', 'Dark'], ['light', 'Light']].forEach(([val, label]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ct-mode-btn seg-btn' + (state.colorMode === val ? ' active' : '');
+      btn.dataset.mode = val; btn.dataset.value = val; btn.textContent = label;
+      btn.addEventListener('click', () => {
+        if (state.colorMode === val) return;
+        state.colorMode = val;
+        modeSeg.querySelectorAll('.ct-mode-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.mode === val));
+        const themePalKey = state.theme === 'warm'
+          ? (val === 'dark' ? 'marketingWarm' : 'marketingWarmLight')
+          : (val === 'dark' ? 'marketingCool' : 'arctic');
+        if (PALETTES[themePalKey]) selectPalette(themePalKey);
+        applyPalette(state.palette);
+        const newPresets = getActiveBgPresets();
+        if (newPresets.length) {
+          state.bgColor = newPresets[0].color;
+          const colorEl = document.getElementById('ctrl-bgcolor');
+          if (colorEl) colorEl.value = state.bgColor;
+          onBgChanged();
+        }
+        rebuildBgSwatches(); rebuildCtSwatches(); syncTheme(); redraw();
+      });
+      modeSeg.appendChild(btn);
+    });
+    modeRow.appendChild(modeSeg);
+    ct.appendChild(modeRow);
+
+    // Hidden palette row (required by syncPaletteSelect / syncTheme)
+    const palRow = document.createElement('div');
+    palRow.className = 'palette-row'; palRow.id = 'ctrl-palette'; palRow.style.display = 'none';
+    Object.entries(PALETTES).forEach(([key, p]) => {
+      if (!p.tone) return;
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.dataset.value = key; btn.title = p.label;
+      btn.className = 'palette-sw' + (state.palette === key ? ' active' : '');
+      btn.style.display = (p.tone === state.theme) ? '' : 'none';
+      const sw = document.createElement('span'); sw.className = 'palette-sw-fill';
+      if (p.stops) {
+        const css = p.stops.map(s => `${s.color} ${(s.stop * 100).toFixed(0)}%`).join(', ');
+        sw.style.background = `linear-gradient(90deg, ${css})`;
+      }
+      const cap = document.createElement('span'); cap.className = 'palette-sw-label'; cap.textContent = p.label;
+      btn.appendChild(sw); btn.appendChild(cap);
+      btn.addEventListener('click', () => selectPalette(key));
+      palRow.appendChild(btn);
+    });
+    ct.appendChild(palRow);
+
+    // Shape gradient sub-label + gradient bar
+    ct.appendChild(mkSubLabel('Shape Gradient'));
+    buildGradientSection(ct);
+
+    // Background
+    ct.appendChild(mkSubLabel('Background'));
+    ct.appendChild(mkSegmented({
+      id: 'ctrl-bg-mode', label: 'BG Type', key: 'bgGradientMode',
+      options: [['solid', 'Solid'], ['gradient', 'Gradient']],
+      onChange: v => {
+        state.bgGradientMode = (v === 'gradient');
+        const sg = document.getElementById('bg-solid-group');
+        const gg = document.getElementById('bg-grad-group');
+        if (sg) sg.style.display = state.bgGradientMode ? 'none' : '';
+        if (gg) gg.style.display = state.bgGradientMode ? '' : 'none';
+        onBgChanged(); redraw();
+      },
+    }));
+    setTimeout(() => {
+      const bgModeSeg = document.getElementById('ctrl-bg-mode');
+      if (bgModeSeg) {
+        const v = state.bgGradientMode ? 'gradient' : 'solid';
+        bgModeSeg.querySelectorAll('.seg-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.value === v));
+      }
+    }, 0);
+
+    // BG Solid group
+    const bgSolidGroup = document.createElement('div');
+    bgSolidGroup.id = 'bg-solid-group';
+    bgSolidGroup.style.display = state.bgGradientMode ? 'none' : '';
+    bgSolidGroup.appendChild(mkColor({
+      id: 'ctrl-bgcolor', label: 'Background Colour', key: 'bgColor',
+      onChange: () => { onBgChanged(); rebuildBgSwatches(); rebuildCtSwatches(); },
+    }));
+    const bgSwatchWrap = document.createElement('div'); bgSwatchWrap.className = 'control-row';
+    const bgSwatchRow  = document.createElement('div'); bgSwatchRow.className = 'bg-swatch-row'; bgSwatchRow.id = 'bg-swatch-container';
+    bgSwatchWrap.appendChild(bgSwatchRow);
+    bgSolidGroup.appendChild(bgSwatchWrap);
+    ct.appendChild(bgSolidGroup);
+
+    // BG Gradient group
+    const bgGradGroup = document.createElement('div');
+    bgGradGroup.id = 'bg-grad-group';
+    bgGradGroup.style.display = state.bgGradientMode ? '' : 'none';
+    _buildBgGradPresets(bgGradGroup);
+    ct.appendChild(bgGradGroup);
+
+    // Hidden ct-swatch-container (required by rebuildCtSwatches)
+    const ctSwatchHidden = document.createElement('div');
+    ctSwatchHidden.id = 'ct-swatch-container';
+    ctSwatchHidden.style.display = 'none';
+    ct.appendChild(ctSwatchHidden);
+
+    rebuildCtSwatches();
+    rebuildBgSwatches();
   });
 
-  imgPickerRow.appendChild(imgPickerLabel);
-  imgPickerRow.appendChild(imgPickerWrap);
-  groupImg.appendChild(imgPickerRow);
-  groupImg.appendChild(mkSlider({ id:'ctrl-img-preset-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'imagePresetOpacity', decimals:2 }));
+  // ── Graphics ──────────────────────────────────────────────
+  const fGraphics = pane.addFolder({ title: 'Graphics', expanded: false });
+  into(fGraphics, ct => {
+    ct.appendChild(mkSubLabel('Composition Setup', 0));
 
-  graphSec.content.appendChild(groupRect);
-  graphSec.content.appendChild(groupCirc);
-  graphSec.content.appendChild(groupImg);
+    const cards    = document.createElement('div'); cards.className = 'comp-cards';
+    const cardRect = document.createElement('div');
+    cardRect.className = 'comp-card' + (state.compositionType === 'rectangle' ? ' active' : '');
+    cardRect.innerHTML = `<svg viewBox="0 0 24 24"><rect x="5" y="6" width="3" height="12" rx="1"/><rect x="10.5" y="3" width="3" height="15" rx="1"/><rect x="16" y="8" width="3" height="10" rx="1"/></svg><span>Rectangle</span>`;
+    const cardCirc = document.createElement('div');
+    cardCirc.className = 'comp-card' + (state.compositionType === 'circular' ? ' active' : '');
+    cardCirc.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="6" cy="14" r="3.5"/><circle cx="12" cy="7" r="3.5"/><circle cx="18" cy="11" r="3.5"/></svg><span>Circular</span>`;
+    const cardImg  = document.createElement('div');
+    cardImg.className = 'comp-card' + (state.compositionType === 'image' ? ' active' : '');
+    cardImg.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M3 16l4.5-4.5 3 3 3-4 4.5 5.5"/></svg><span>Image</span>`;
+    cards.appendChild(cardRect); cards.appendChild(cardCirc); cards.appendChild(cardImg);
+    ct.appendChild(cards);
 
-  // Curve controls are only relevant for rectangle composition
-  const curveWrap = document.createElement('div');
-  curveWrap.id = 'curve-controls-wrap';
-  curveWrap.style.display = (state.compositionType === 'circular' || state.compositionType === 'image') ? 'none' : '';
+    // Rectangle group
+    const groupRect = document.createElement('div');
+    groupRect.id = 'group-rect';
+    groupRect.className = 'ctrl-group' + (state.compositionType === 'rectangle' ? ' active' : '');
+    groupRect.appendChild(mkSlider({ id:'ctrl-count',    label:'Rectangle Count',   min:2,   max:120,  step:1,   key:'rectCount' }));
+    groupRect.appendChild(mkSlider({ id:'ctrl-spacing',  label:'Item Spacing',      min:0,   max:30,   step:0.5, key:'spacing',   decimals:1 }));
+    groupRect.appendChild(mkToggle({ id:'ctrl-symmetry', label:'Symmetry (size)',   key:'symmetry' }));
+    groupRect.appendChild(mkToggle({ id:'ctrl-mirror-y', label:'Mirror Axis',       key:'mirrorY'  }));
+    groupRect.appendChild(mkSegmented({ id:'ctrl-baseline', label:'Baseline Direction', key:'baseline',
+      options:[
+        ['bottom', ICONS.baseBottom, 'Bottom — grow upward'],
+        ['top',    ICONS.baseTop,    'Top — grow downward'],
+        ['left',   ICONS.baseLeft,   'Left — grow rightward'],
+        ['right',  ICONS.baseRight,  'Right — grow leftward'],
+      ],
+    }));
+    ct.appendChild(groupRect);
 
-  curveWrap.appendChild(mkSlider({ id:'ctrl-extent', label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
+    // Circular group
+    const groupCirc = document.createElement('div');
+    groupCirc.id = 'group-circ';
+    groupCirc.className = 'ctrl-group' + (state.compositionType === 'circular' ? ' active' : '');
+    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',        label:'Circle Count',                      min:2,    max:40,   step:1,  key:'circleCount' }));
+    groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',            label:'Max Diameter',                      min:50,   max:2000, step:10, key:'circleDiameter' }));
+    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-stagger-auto', label:'Auto Stagger (diameter ÷ 2.69)',    key:'circleStaggerAuto' }));
+    groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align',    label:'Anchor Position',                   key:'circleAlignment' }));
+    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',       label:'Mirror X & Y Axis',                 key:'circleMirrorXY' }));
+    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor',  label:'Flip Anchor — smallest at boundary',key:'circleFlipAnchor' }));
+    groupCirc.appendChild(mkSubLabel('Text-Aware Positioning'));
+    groupCirc.appendChild(mkToggle({
+      id: 'ctrl-circle-text-link', label: 'Link X to Headline', key: 'circleTextLink',
+      onChange: () => {
+        const r = document.getElementById('ctrl-circle-text-padding')?.closest('.control-row');
+        if (r) r.style.display = state.circleTextLink ? '' : 'none';
+        redraw();
+      },
+    }));
+    const textPadRow = mkSlider({ id:'ctrl-circle-text-padding', label:'Text Gap (extra px)', min:-200, max:400, step:10, key:'circleTextPadding' });
+    textPadRow.style.display = state.circleTextLink ? '' : 'none';
+    groupCirc.appendChild(textPadRow);
+    groupCirc.appendChild(mkSubLabel('Fine Tune'));
+    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
+    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
+    ct.appendChild(groupCirc);
 
-  // Noise seed row — only visible when 'noise' curve is selected
-  const noiseSeedRow = mkSlider({ id:'ctrl-noise-seed', label:'Noise Seed', min:1, max:999, step:1, key:'noiseSeed',
-    onChange: () => redraw(),
-  });
-  noiseSeedRow.id = 'noise-seed-row';
-  noiseSeedRow.style.display = state.curveType === 'noise' ? '' : 'none';
+    // Image group — preset picker + opacity
+    const groupImg = document.createElement('div');
+    groupImg.id = 'group-img-comp';
+    groupImg.className = 'ctrl-group' + (state.compositionType === 'image' ? ' active' : '');
+    const imgPickerRow  = document.createElement('div'); imgPickerRow.className = 'control-row';
+    const imgPickerLabel = document.createElement('label'); imgPickerLabel.textContent = 'Preset';
+    const imgPickerWrap = document.createElement('div'); imgPickerWrap.className = 'img-preset-picker';
+    [['dark', 'Background%20Presets/BG-Dark.png', 'Dark'], ['light', 'Background%20Presets/BG-Light.png', 'Light']].forEach(([key, src, label]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'img-preset-btn' + (state.imagePresetSelected === key ? ' active' : '');
+      btn.title = label; btn.dataset.key = key;
+      const thumb = document.createElement('img'); thumb.src = src; thumb.alt = label;
+      btn.appendChild(thumb);
+      btn.addEventListener('click', () => {
+        state.imagePresetSelected = key;
+        imgPickerWrap.querySelectorAll('.img-preset-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.key === key));
+        if (window._p5Redraw) window._p5Redraw();
+      });
+      imgPickerWrap.appendChild(btn);
+    });
+    imgPickerRow.appendChild(imgPickerLabel); imgPickerRow.appendChild(imgPickerWrap);
+    groupImg.appendChild(imgPickerRow);
+    groupImg.appendChild(mkSlider({ id:'ctrl-img-preset-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'imagePresetOpacity', decimals:2 }));
+    ct.appendChild(groupImg);
 
-  const reseedRow = document.createElement('div');
-  reseedRow.id = 'noise-reseed-row';
-  reseedRow.className = 'control-row';
-  reseedRow.style.display = state.curveType === 'noise' ? '' : 'none';
-  const reseedBtn = document.createElement('button');
-  reseedBtn.type = 'button';
-  reseedBtn.className = 'ctrl-btn';
-  reseedBtn.textContent = '⟳  New Seed';
-  reseedBtn.addEventListener('click', () => {
-    state.noiseSeed = Math.floor(Math.random() * 999) + 1;
-    const sl = document.getElementById('ctrl-noise-seed');
-    if (sl) { sl.value = state.noiseSeed; const v = sl.closest('.control-row')?.querySelector('.val'); if (v) v.textContent = state.noiseSeed; }
-    redraw();
-  });
-  reseedRow.appendChild(reseedBtn);
+    // Curve distribution (hidden for circular / image compositions)
+    const curveWrap = document.createElement('div');
+    curveWrap.id = 'curve-controls-wrap';
+    curveWrap.style.display = (state.compositionType === 'circular' || state.compositionType === 'image') ? 'none' : '';
+    curveWrap.appendChild(mkSlider({ id:'ctrl-extent', label:'Stagger/Growth Extent', min:0.05, max:1, step:0.01, key:'extent', decimals:2 }));
 
-  curveWrap.appendChild(mkSegmented({
-    id:'ctrl-curve', label:'Curve Distribution', key:'curveType', variant:'grid grid-4',
-    options:[
-      ['flat',       curveThumbSvg('flat'),       'Flat'],
-      ['linear',     curveThumbSvg('linear'),     'Linear'],
-      ['quadratic',  curveThumbSvg('quadratic'),  'Quadratic'],
-      ['cubic',      curveThumbSvg('cubic'),      'Cubic'],
-      ['parabolic',  curveThumbSvg('parabolic'),  'Parabolic — Peak Center'],
-      ['hyperbolic', curveThumbSvg('hyperbolic'), 'Hyperbolic'],
-      ['bezier',     curveThumbSvg('bezier'),     'Bezier'],
-      ['noise',      curveThumbSvg('noise'),      'Noise — Organic'],
-    ],
-    onChange: v => {
-      const show = v === 'noise';
-      noiseSeedRow.style.display = show ? '' : 'none';
-      reseedRow.style.display    = show ? '' : 'none';
+    const noiseSeedRow = mkSlider({ id:'ctrl-noise-seed', label:'Noise Seed', min:1, max:999, step:1, key:'noiseSeed', onChange: () => redraw() });
+    noiseSeedRow.id = 'noise-seed-row';
+    noiseSeedRow.style.display = state.curveType === 'noise' ? '' : 'none';
+
+    const reseedRow = document.createElement('div');
+    reseedRow.id = 'noise-reseed-row'; reseedRow.className = 'control-row';
+    reseedRow.style.display = state.curveType === 'noise' ? '' : 'none';
+    const reseedBtn = document.createElement('button');
+    reseedBtn.type = 'button'; reseedBtn.className = 'ctrl-btn'; reseedBtn.textContent = '⟳  New Seed';
+    reseedBtn.addEventListener('click', () => {
+      state.noiseSeed = Math.floor(Math.random() * 999) + 1;
+      const sl = document.getElementById('ctrl-noise-seed');
+      if (sl) { sl.value = state.noiseSeed; const vv = sl.closest('.control-row')?.querySelector('.val'); if (vv) vv.textContent = state.noiseSeed; }
       redraw();
-    },
-  }));
-  curveWrap.appendChild(noiseSeedRow);
-  curveWrap.appendChild(reseedRow);
-  curveWrap.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
+    });
+    reseedRow.appendChild(reseedBtn);
 
-  const cvWrap = document.createElement('div'); cvWrap.className = 'control-row';
-  const cvLbl  = document.createElement('label'); cvLbl.textContent = 'Curve Preview';
-  const cvCvs  = document.createElement('canvas'); cvCvs.id = 'curve-preview'; cvCvs.width = 260; cvCvs.height = 60;
-  cvWrap.appendChild(cvLbl); cvWrap.appendChild(cvCvs);
-  curveWrap.appendChild(cvWrap);
+    curveWrap.appendChild(mkSegmented({
+      id: 'ctrl-curve', label: 'Curve Distribution', key: 'curveType', variant: 'grid grid-4',
+      options: [
+        ['flat',       curveThumbSvg('flat'),       'Flat'],
+        ['linear',     curveThumbSvg('linear'),     'Linear'],
+        ['quadratic',  curveThumbSvg('quadratic'),  'Quadratic'],
+        ['cubic',      curveThumbSvg('cubic'),      'Cubic'],
+        ['parabolic',  curveThumbSvg('parabolic'),  'Parabolic — Peak Center'],
+        ['hyperbolic', curveThumbSvg('hyperbolic'), 'Hyperbolic'],
+        ['bezier',     curveThumbSvg('bezier'),     'Bezier'],
+        ['noise',      curveThumbSvg('noise'),      'Noise — Organic'],
+      ],
+      onChange: v => {
+        const show = v === 'noise';
+        noiseSeedRow.style.display = show ? '' : 'none';
+        reseedRow.style.display    = show ? '' : 'none';
+        redraw();
+      },
+    }));
+    curveWrap.appendChild(noiseSeedRow);
+    curveWrap.appendChild(reseedRow);
+    curveWrap.appendChild(mkToggle({ id:'ctrl-flip-curve', label:'Flip Curve Shape', key:'flipCurve' }));
 
-  graphSec.content.appendChild(curveWrap);
+    const cvWrap = document.createElement('div'); cvWrap.className = 'control-row';
+    const cvLbl  = document.createElement('label'); cvLbl.textContent = 'Curve Preview';
+    const cvCvs  = document.createElement('canvas'); cvCvs.id = 'curve-preview'; cvCvs.width = 260; cvCvs.height = 60;
+    cvWrap.appendChild(cvLbl); cvWrap.appendChild(cvCvs);
+    curveWrap.appendChild(cvWrap);
+    ct.appendChild(curveWrap);
 
-  const switchType = type => {
-    state.compositionType = type;
-    cardRect.classList.toggle('active', type==='rectangle');
-    cardCirc.classList.toggle('active', type==='circular');
-    cardImg.classList.toggle('active',  type==='image');
-    groupRect.classList.toggle('active', type==='rectangle');
-    groupCirc.classList.toggle('active', type==='circular');
-    groupImg.classList.toggle('active',  type==='image');
-    curveWrap.style.display = (type === 'circular' || type === 'image') ? 'none' : '';
-    redraw();
-  };
-  cardRect.addEventListener('click', () => switchType('rectangle'));
-  cardCirc.addEventListener('click', () => switchType('circular'));
-  cardImg.addEventListener('click',  () => switchType('image'));
+    // Composition type switch handler
+    const switchType = type => {
+      state.compositionType = type;
+      cardRect.classList.toggle('active', type === 'rectangle');
+      cardCirc.classList.toggle('active', type === 'circular');
+      cardImg.classList.toggle('active',  type === 'image');
+      groupRect.classList.toggle('active', type === 'rectangle');
+      groupCirc.classList.toggle('active', type === 'circular');
+      groupImg.classList.toggle('active',  type === 'image');
+      curveWrap.style.display = (type === 'circular' || type === 'image') ? 'none' : '';
+      redraw();
+    };
+    cardRect.addEventListener('click', () => switchType('rectangle'));
+    cardCirc.addEventListener('click', () => switchType('circular'));
+    cardImg.addEventListener('click',  () => switchType('image'));
 
-  // ── Style / Opacity / Blur ─────────────────────────────────
-  graphSec.content.appendChild(mkSubLabel('Style'));
+    // Style
+    ct.appendChild(mkSubLabel('Style'));
+    ct.appendChild(mkToggle({ id:'ctrl-global-op', label:'Global Opacity (Blend Group)', key:'globalOpacity' }));
+    ct.appendChild(mkSlider({ id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
+      onChange: () => { renderGradientBar(); redraw(); } }));
+    ct.appendChild(mkSlider({ id:'ctrl-blur', label:'Blur (inner)', min:0, max:20, step:0.5, key:'blur', decimals:1 }));
 
-  // ─ Global Opacity ABOVE Opacity slider ─────────────────────
-  graphSec.content.appendChild(mkToggle({ id:'ctrl-global-op', label:'Global Opacity (Blend Group)', key:'globalOpacity' }));
-  graphSec.content.appendChild(mkSlider({
-    id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
-    onChange: () => { renderGradientBar(); redraw(); },
-  }));
-
-  // Blur — scaled to canvas so effect is always visible
-  graphSec.content.appendChild(mkSlider({
-    id:'ctrl-blur', label:'Blur (inner)', min:0, max:20, step:0.5, key:'blur', decimals:1,
-  }));
-
-  // ── Depth & Effects ────────────────────────────────────────
-  graphSec.content.appendChild(mkSubLabel('Depth & Effects'));
-  graphSec.content.appendChild(mkToggle({
-    id: 'ctrl-depth-shadow', label: 'Depth Shadow', key: 'depthShadow',
-  }));
-  graphSec.content.appendChild(mkSlider({
-    id:'ctrl-ds-spread', label:'Shadow Spread', min:0.01, max:1, step:0.01, key:'dsSpread', decimals:2,
-  }));
-  graphSec.content.appendChild(mkSlider({
-    id:'ctrl-ds-opacity', label:'Shadow Opacity', min:0, max:1, step:0.01, key:'dsOpacity', decimals:2,
-  }));
-  graphSec.content.appendChild(mkToggle({ id:'ctrl-inner-glow', label:'Inner Glow', key:'innerGlow' }));
-  graphSec.content.appendChild(mkSlider({
-    id:'ctrl-glow-intensity', label:'Glow Intensity', min:0, max:1, step:0.01, key:'innerGlowIntensity', decimals:2,
-  }));
-
-  scroll.appendChild(graphSec.sec);
-
-  // ── Headline ─────────────────────────────────────────────
-  const hlSec = mkSection('Headline', 'showHeadline');
-  hlSec.content.appendChild(mkTextarea({ id:'ctrl-hl-text',   label:'Text',              key:'headlineText',           rows:3,  onChange: updateOverlays }));
-  hlSec.content.appendChild(mkInput(  { id:'ctrl-hl-words',   label:'Highlight Words',   key:'headlineHighlightWords',          onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSubLabel('Colours', 8));
-  hlSec.content.appendChild(mkTextBaseControl('hl'));
-  hlSec.content.appendChild(mkColor(  { id:'ctrl-hl-hl-color',label:'Highlight Colour',  key:'headlineHighlightColor',          onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSubLabel('Fill', 8));
-  hlSec.content.appendChild(mkToggle( { id:'ctrl-hl-fill',    label:'Fill Behind Text',  key:'headlineFillEnabled',             onChange: updateOverlays }));
-  hlSec.content.appendChild(mkColor(  { id:'ctrl-hl-fill-col',label:'Fill Colour',       key:'headlineFillColor',               onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSlider( { id:'ctrl-hl-fill-op', label:'Fill Opacity',      min:0, max:1, step:0.01, key:'headlineFillOpacity', decimals:2, onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSubLabel('Typography', 8));
-  hlSec.content.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'Font Type',  key:'headlineFont',  options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'Alignment', key:'headlineAlign',
-    options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
-    onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-lh',       label:'Line Height', min:0.5, max:2.5, step:0.05, key:'headlineLineHeight', decimals:2, onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-fs',       label:'Font Size',   min:10,  max:300, step:1,    key:'headlineFontSize',   decimals:0, onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-y',        label:'Y Position',  min:0,   max:1500,step:1,    key:'headlineYPos',       decimals:0, onChange: updateOverlays }));
-  hlSec.content.appendChild(mkSlider({ id:'ctrl-hl-pad',      label:'L/R Padding', min:0,   max:700, step:1,    key:'headlinePadding',    decimals:0, onChange: updateOverlays }));
-  scroll.appendChild(hlSec.sec);
-
-  // ── Image Placeholder ────────────────────────────────────
-  const imgSec = mkSection('Image Placeholder', 'showImage');
-
-  // Upload
-  const fileWrap = document.createElement('div'); fileWrap.className = 'control-row';
-  const fileLbl  = document.createElement('label'); fileLbl.textContent = 'Upload Image';
-  const fileInp  = document.createElement('input'); fileInp.type = 'file'; fileInp.id = 'ctrl-img-upload'; fileInp.accept = 'image/*'; fileInp.style.width = '100%';
-  fileInp.addEventListener('change', e => {
-    if (!e.target.files.length) return;
-    state.imageSrc = URL.createObjectURL(e.target.files[0]);
-    updateOverlays();
+    ct.appendChild(mkSubLabel('Depth & Effects'));
+    ct.appendChild(mkToggle({ id:'ctrl-depth-shadow', label:'Depth Shadow', key:'depthShadow' }));
+    ct.appendChild(mkSlider({ id:'ctrl-ds-spread',    label:'Shadow Spread',   min:0.01, max:1, step:0.01, key:'dsSpread',           decimals:2 }));
+    ct.appendChild(mkSlider({ id:'ctrl-ds-opacity',   label:'Shadow Opacity',  min:0,    max:1, step:0.01, key:'dsOpacity',          decimals:2 }));
+    ct.appendChild(mkToggle({ id:'ctrl-inner-glow',   label:'Inner Glow',      key:'innerGlow' }));
+    ct.appendChild(mkSlider({ id:'ctrl-glow-intensity',label:'Glow Intensity', min:0,    max:1, step:0.01, key:'innerGlowIntensity', decimals:2 }));
   });
-  fileWrap.appendChild(fileLbl); fileWrap.appendChild(fileInp);
-  imgSec.content.appendChild(fileWrap);
 
-  imgSec.content.appendChild(mkSubLabel('Style Presets', 12));
-  buildImagePresetControls(imgSec.content);
+  // ── Headline ──────────────────────────────────────────────
+  const fHeadline = pane.addFolder({ title: 'Headline', expanded: false });
+  into(fHeadline, ct => {
+    ct.appendChild(mkTextarea({ id:'ctrl-hl-text',    label:'Text',            key:'headlineText',          rows:3, onChange: updateOverlays }));
+    ct.appendChild(mkInput(   { id:'ctrl-hl-words',   label:'Highlight Words', key:'headlineHighlightWords',       onChange: updateOverlays }));
+    ct.appendChild(mkSubLabel('Colours', 8));
+    ct.appendChild(mkTextBaseControl('hl'));
+    ct.appendChild(mkColor(   { id:'ctrl-hl-hl-color',label:'Highlight Colour',key:'headlineHighlightColor',       onChange: updateOverlays }));
+    ct.appendChild(mkSubLabel('Fill', 8));
+    ct.appendChild(mkToggle(  { id:'ctrl-hl-fill',    label:'Fill Behind Text',key:'headlineFillEnabled',          onChange: updateOverlays }));
+    ct.appendChild(mkColor(   { id:'ctrl-hl-fill-col',label:'Fill Colour',     key:'headlineFillColor',            onChange: updateOverlays }));
+    ct.appendChild(mkSlider(  { id:'ctrl-hl-fill-op', label:'Fill Opacity',    min:0, max:1, step:0.01, key:'headlineFillOpacity', decimals:2, onChange: updateOverlays }));
+    ct.appendChild(mkSubLabel('Typography', 8));
+    ct.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'Font Type',  key:'headlineFont',  options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
+    ct.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'Alignment',  key:'headlineAlign',
+      options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
+      onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-lh',  label:'Line Height', min:0.5,  max:2.5,  step:0.05, key:'headlineLineHeight', decimals:2, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-fs',  label:'Font Size',   min:10,   max:300,  step:1,    key:'headlineFontSize',   decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0,    max:1500, step:1,    key:'headlineYPos',       decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0,    max:700,  step:1,    key:'headlinePadding',    decimals:0, onChange: updateOverlays }));
+  });
 
-  imgSec.content.appendChild(mkSubLabel('Distribution', 12));
-  buildImageDistControls(imgSec.content);
+  // ── Image Placeholder ─────────────────────────────────────
+  const fImage = pane.addFolder({ title: 'Image Placeholder', expanded: false });
+  into(fImage, ct => {
+    const fileWrap = document.createElement('div'); fileWrap.className = 'control-row';
+    const fileLbl  = document.createElement('label'); fileLbl.textContent = 'Upload Image';
+    const fileInp  = document.createElement('input');
+    fileInp.type = 'file'; fileInp.id = 'ctrl-img-upload'; fileInp.accept = 'image/*'; fileInp.style.width = '100%';
+    fileInp.addEventListener('change', e => {
+      if (!e.target.files.length) return;
+      state.imageSrc = URL.createObjectURL(e.target.files[0]);
+      updateOverlays();
+    });
+    fileWrap.appendChild(fileLbl); fileWrap.appendChild(fileInp);
+    ct.appendChild(fileWrap);
 
-  imgSec.content.appendChild(mkSubLabel('Position & Style', 12));
-  imgSec.content.appendChild(mkSlider({ id:'ctrl-img-scale', label:'Scale',          min:0.1, max:2,   step:0.01, key:'imageScale',       decimals:2, onChange: updateOverlays }));
-  imgSec.content.appendChild(mkSlider({ id:'ctrl-img-y',     label:'Y-Axis Offset',  min:-1500,max:1500,step:10,  key:'imageYOffset',     decimals:0, onChange: updateOverlays }));
-  imgSec.content.appendChild(mkSegmented({
-    id:'ctrl-img-stroke', label:'Stroke Preset', key:'imageStrokeStyle',
-    options: [
-      ['marketing', `<span class="stroke-sw marketing"></span><span class="seg-caption">Warm</span>`,   'Marketing Warm'],
-      ['frosty',    `<span class="stroke-sw frosty"></span><span class="seg-caption">Frosty</span>`, 'Frosty Glass'],
-    ],
-    onChange: updateOverlays,
-  }));
-  // Corner radius clamped 0–40
-  imgSec.content.appendChild(mkSlider({ id:'ctrl-img-rad',   label:'Corner Radius',  min:0, max:40, step:1, key:'imageRadius', decimals:0, onChange: updateOverlays }));
-  imgSec.content.appendChild(mkSlider({ id:'ctrl-img-sop',   label:'Stroke Opacity', min:0, max:1,  step:0.01, key:'imageStrokeOp',    decimals:2, onChange: updateOverlays }));
-  imgSec.content.appendChild(mkSlider({ id:'ctrl-img-sw',    label:'Stroke Weight',  min:0, max:100,step:1,    key:'imageStrokeWeight', decimals:0, onChange: updateOverlays }));
-  scroll.appendChild(imgSec.sec);
+    ct.appendChild(mkSubLabel('Style Presets', 12));
+    buildImagePresetControls(ct);
+    ct.appendChild(mkSubLabel('Distribution', 12));
+    buildImageDistControls(ct);
+    ct.appendChild(mkSubLabel('Position & Style', 12));
+    ct.appendChild(mkSlider({ id:'ctrl-img-scale', label:'Scale',         min:0.1,   max:2,    step:0.01, key:'imageScale',        decimals:2, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-y',     label:'Y-Axis Offset', min:-1500, max:1500, step:10,   key:'imageYOffset',      decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSegmented({
+      id: 'ctrl-img-stroke', label: 'Stroke Preset', key: 'imageStrokeStyle',
+      options: [
+        ['marketing', `<span class="stroke-sw marketing"></span><span class="seg-caption">Warm</span>`,  'Marketing Warm'],
+        ['frosty',    `<span class="stroke-sw frosty"></span><span class="seg-caption">Frosty</span>`,   'Frosty Glass'],
+      ],
+      onChange: updateOverlays,
+    }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-rad', label:'Corner Radius',  min:0, max:40,  step:1,    key:'imageRadius',       decimals:0, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-sop', label:'Stroke Opacity', min:0, max:1,   step:0.01, key:'imageStrokeOp',     decimals:2, onChange: updateOverlays }));
+    ct.appendChild(mkSlider({ id:'ctrl-img-sw',  label:'Stroke Weight',  min:0, max:100, step:1,    key:'imageStrokeWeight', decimals:0, onChange: updateOverlays }));
+  });
 
-  // ── Footer ───────────────────────────────────────────────
-  const ftSec = mkSection('Footer', 'showFooter');
-  ftSec.content.appendChild(mkInput({ id:'ctrl-ft-byline',   label:'Byline',       key:'footerByline',   onChange: updateOverlays }));
-  ftSec.content.appendChild(mkTextBaseControl('ft'));
-  ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-font',   label:'Font Type', key:'footerFont',   options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-  ftSec.content.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'Alignment', key:'footerAlign',
-    options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
-    onChange: updateOverlays }));
-  scroll.appendChild(ftSec.sec);
+  // ── Footer ────────────────────────────────────────────────
+  const fFooter = pane.addFolder({ title: 'Footer', expanded: false });
+  into(fFooter, ct => {
+    ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'Byline', key:'footerByline', onChange: updateOverlays }));
+    ct.appendChild(mkTextBaseControl('ft'));
+    ct.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'Font Type', key:'footerFont',
+      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
+    ct.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'Alignment', key:'footerAlign',
+      options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
+      onChange: updateOverlays }));
+  });
+}
+
+// ── _applyTheme: central warm/cool theme switcher ─────────────
+function _applyTheme(v) {
+  state.theme = v;
+  const firstPal = Object.entries(PALETTES).find(([, p]) => p.tone === v);
+  if (firstPal) { state.palette = firstPal[0]; applyPalette(firstPal[0]); }
+  state.imageStrokeStyle = (v === 'cool') ? 'frosty' : 'marketing';
+  if (state.bgGradientMode && state.bgGradientPreset) {
+    const currentBgTheme = BG_GRADIENTS[state.bgGradientPreset]?.theme;
+    if (currentBgTheme !== v) {
+      const firstBg = Object.entries(BG_GRADIENTS).find(([, bg]) => bg.theme === v);
+      if (firstBg) {
+        state.bgGradientPreset = firstBg[0];
+        state.bgGradientStops  = JSON.parse(JSON.stringify(firstBg[1].stops));
+        state.bgGradientDir    = firstBg[1].dir || 'vertical';
+      } else {
+        state.bgGradientMode = false;
+      }
+    }
+  }
+  const newBgs = getActiveBgPresets();
+  if (newBgs.length && !newBgs.some(b => b.color.toLowerCase() === state.bgColor.toLowerCase())) {
+    state.bgColor = newBgs[Math.floor(newBgs.length / 2)].color;
+    const bgPicker = document.getElementById('ctrl-bgcolor');
+    if (bgPicker) bgPicker.value = state.bgColor;
+  }
+  document.querySelectorAll('[data-theme-circle]').forEach(b => {
+    b.classList.toggle('active', b.dataset.themeCircle === v);
+  });
+  syncTheme(); syncPaletteSelect(); renderStopList(); updateOverlays(); redraw();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2080,6 +2242,12 @@ function syncControlsToState() {
     ['ctrl-img-rad',           'imageRadius',         0],
     ['ctrl-img-count',         'imageMultiCount',     0],
     ['ctrl-img-multi-spacing', 'imageMultiSpacing',   0],
+    ['ctrl-hl-fs',             'headlineFontSize',    0],
+    ['ctrl-hl-lh',             'headlineLineHeight',  2],
+    ['ctrl-img-scale',         'imageScale',          2],
+    ['ctrl-img-y',             'imageYOffset',        0],
+    ['ctrl-img-sop',           'imageStrokeOp',       2],
+    ['ctrl-img-sw',            'imageStrokeWeight',   0],
   ].forEach(([id, key, dec]) => {
     const el = document.getElementById(id); if (!el) return;
     el.value = state[key];
