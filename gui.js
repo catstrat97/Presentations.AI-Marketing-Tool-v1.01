@@ -568,8 +568,16 @@ function syncTheme() {
     });
   }
 
-  // Rebuild solid BG swatches for the new theme
+  // Rebuild solid BG swatches for the new theme + colorMode
   rebuildBgSwatches();
+  rebuildCtSwatches();
+
+  // Sync colorMode buttons
+  const modeCol = document.getElementById('ct-mode-col');
+  if (modeCol) {
+    modeCol.querySelectorAll('.ct-mode-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === (state.colorMode || 'dark')));
+  }
 
   // Show only BG gradient presets that match the active theme
   const gradRow = document.getElementById('bg-grad-container');
@@ -1352,6 +1360,97 @@ function mkTextBaseControl(prefix) {
 // ══════════════════════════════════════════════════════════════
 // BUILD GUI
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// COLOR & THEME SECTION
+// ══════════════════════════════════════════════════════════════
+
+/** Rebuild the swatch grid inside the Color & Theme section */
+function rebuildCtSwatches() {
+  const container = document.getElementById('ct-swatch-container');
+  if (!container) return;
+  container.innerHTML = '';
+  getActiveBgPresets().forEach(preset => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ct-swatch-btn' + (preset.color.toLowerCase() === state.bgColor.toLowerCase() ? ' active' : '');
+    btn.title = preset.label;
+    btn.style.background = preset.color;
+    const luma = getColorLuma(preset.color);
+    btn.style.boxShadow = luma > 220
+      ? '0 0 0 1px rgba(0,0,0,0.15)'
+      : '0 0 0 1px rgba(255,255,255,0.08)';
+    btn.addEventListener('click', () => {
+      state.bgColor = preset.color;
+      const colorEl = document.getElementById('ctrl-bgcolor');
+      if (colorEl) colorEl.value = preset.color;
+      // Mark active
+      container.querySelectorAll('.ct-swatch-btn').forEach(b =>
+        b.classList.toggle('active', b.style.background === preset.color || b === btn));
+      onBgChanged();
+      redraw();
+    });
+    container.appendChild(btn);
+  });
+}
+
+function buildColorThemeSection(scroll) {
+  const sec = mkSection('Color & Theme');
+
+  const row = document.createElement('div');
+  row.className = 'color-theme-row';
+
+  // ── Left: swatch grid ─────────────────────────────────────
+  const swatchWrap = document.createElement('div');
+  swatchWrap.id = 'ct-swatch-container';
+  swatchWrap.className = 'ct-swatches';
+
+  // ── Right: Light / Dark mode buttons ─────────────────────
+  const modeCol = document.createElement('div');
+  modeCol.id = 'ct-mode-col';
+  modeCol.className = 'ct-mode-col';
+
+  [['dark', 'Dark'], ['light', 'Light']].forEach(([val, label]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ct-mode-btn' + (state.colorMode === val ? ' active' : '');
+    btn.dataset.mode = val;
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      if (state.colorMode === val) return;
+      state.colorMode = val;
+
+      // Sync mode button active states
+      modeCol.querySelectorAll('.ct-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === val));
+
+      // Auto-select a bgColor appropriate for the new mode
+      const newPresets = getActiveBgPresets();
+      if (newPresets.length) {
+        // dark → pick a dark swatch (first = darkest for dark-keyed arrays), light → pick lightest
+        const idx = val === 'dark' ? 0 : 0; // both ordered from dark→light for dark, light→dark for light
+        state.bgColor = newPresets[idx].color;
+        const colorEl = document.getElementById('ctrl-bgcolor');
+        if (colorEl) colorEl.value = state.bgColor;
+        onBgChanged();
+      }
+
+      // Rebuild both swatch lists
+      rebuildCtSwatches();
+      rebuildBgSwatches();
+      redraw();
+    });
+    modeCol.appendChild(btn);
+  });
+
+  row.appendChild(swatchWrap);
+  row.appendChild(modeCol);
+  sec.content.appendChild(row);
+  scroll.appendChild(sec.sec);
+
+  // Populate swatches on first build
+  rebuildCtSwatches();
+}
+
 function buildGUI() {
   const scroll = document.getElementById('panel-scroll');
 
@@ -1381,6 +1480,9 @@ function buildGUI() {
     },
   }));
   scroll.appendChild(canvasSec.sec);
+
+  // ── Color & Theme ────────────────────────────────────────
+  buildColorThemeSection(scroll);
 
   // ── Graphics ─────────────────────────────────────────────
   const graphSec = mkSection('Graphics', 'showGraphics');

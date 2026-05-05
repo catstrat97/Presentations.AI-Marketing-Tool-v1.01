@@ -98,6 +98,19 @@ const PALETTES = {
       { stop: 1.0, color: '#1e88e5' },
     ],
   },
+
+  // Temporary warm-light palette — shapes work on light backgrounds
+  marketingWarmLight: {
+    label: 'Warm-Light',
+    tone: 'warm',
+    stops: [
+      { stop: 0.00, color: '#FFE0CC' },
+      { stop: 0.20, color: '#FFB96E' },
+      { stop: 0.50, color: '#F88030' },
+      { stop: 0.75, color: '#F66A24' },
+      { stop: 1.00, color: '#DC4A00' },
+    ],
+  },
 };
 
 // ── Background Gradient Presets — same stops as shape palettes ──
@@ -124,8 +137,47 @@ const BG_GRADIENTS = {
   },
 };
 
-// ── Background Presets — filtered by palette tone ────────────
+// ── Background Presets — filtered by palette tone + mode ─────
 const BG_PALETTE_MAP = {
+  // Dark mode swatches (default)
+  'warm-dark': [
+    { color: '#361E1C', label: 'Dark Umber' },
+    { color: '#C72405', label: 'Brick' },
+    { color: '#DF490B', label: 'Ember' },
+    { color: '#F65324', label: 'Flame' },
+    { color: '#F66A24', label: 'Orange' },
+    { color: '#FFB96E', label: 'Sand' },
+    { color: '#FFF0E5', label: 'Warm White' },
+  ],
+  'cool-dark': [
+    { color: '#000D1F', label: 'Abyss' },
+    { color: '#002156', label: 'Deep Navy' },
+    { color: '#23303B', label: 'Slate' },
+    { color: '#4374B9', label: 'Steel' },
+    { color: '#66A8FF', label: 'Cornflower' },
+    { color: '#A6D0FF', label: 'Powder' },
+    { color: '#CAE2FF', label: 'Ice Blue' },
+  ],
+  // Light mode swatches
+  'warm-light': [
+    { color: '#FFF0E5', label: 'Warm White' },
+    { color: '#FFE0CC', label: 'Peach Cream' },
+    { color: '#FFB96E', label: 'Sand' },
+    { color: '#F88030', label: 'Tangerine' },
+    { color: '#F66A24', label: 'Orange' },
+    { color: '#DC4A00', label: 'Rust' },
+    { color: '#A83200', label: 'Sienna' },
+  ],
+  'cool-light': [
+    { color: '#EEF6FF', label: 'Alice Blue' },
+    { color: '#C8E6FF', label: 'Sky' },
+    { color: '#7EC8F7', label: 'Cerulean' },
+    { color: '#4BA3E3', label: 'Cornflower' },
+    { color: '#1E88E5', label: 'Cobalt' },
+    { color: '#1565C0', label: 'Royal' },
+    { color: '#0D47A1', label: 'Sapphire' },
+  ],
+  // Legacy keys (kept for backwards compatibility)
   warm: [
     { color: '#FFF0E5', label: 'Warm White' },
     { color: '#FFB96E', label: 'Sand' },
@@ -224,6 +276,7 @@ const state = {
   imagePresetSelected: 'dark',   // 'dark' | 'light'
 
   theme:       'warm',
+  colorMode:   'dark',            // 'dark' | 'light'
   palette:     'marketingWarm',
   paletteMode: 'normal',        // 'normal' | 'symmetrical' | 'sync'
   gradientStops: JSON.parse(JSON.stringify(PALETTES.marketingWarm.stops)),
@@ -320,9 +373,10 @@ function getPaletteTone() {
   return state.theme || 'warm';
 }
 
-/** Returns the BG solid preset list for the active theme */
+/** Returns the BG solid preset list for the active theme + colorMode */
 function getActiveBgPresets() {
-  return BG_PALETTE_MAP[state.theme] || BG_PALETTE_MAP.custom;
+  const key = state.theme + '-' + (state.colorMode || 'dark');
+  return BG_PALETTE_MAP[key] || BG_PALETTE_MAP[state.theme] || BG_PALETTE_MAP.custom;
 }
 
 // ── Curve ────────────────────────────────────────────────────

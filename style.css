@@ -248,7 +248,7 @@ html, body {
 
 /* ── Sections ─────────────────────────────────────────────── */
 .section {
-  padding: 16px 0;
+  padding: 20px 0;
   border-bottom: 1px solid var(--border);
 }
 .section:last-child {
@@ -366,7 +366,7 @@ html, body {
 
 /* ── Controls ─────────────────────────────────────────────── */
 .control-row {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 /* Action button used inside control rows (e.g. "New Seed") */
@@ -486,7 +486,7 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .toggle {
@@ -969,4 +969,108 @@ input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1
 #btn-shuffle-imgs {
   width: 100%;
   margin-top: 4px;
+}
+
+/* ── Color & Theme Section ───────────────────────────────── */
+.color-theme-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+/* Left column: swatch grid */
+.ct-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.ct-swatch-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s;
+  flex-shrink: 0;
+  outline: none;
+}
+
+.ct-swatch-btn:hover {
+  transform: scale(1.15);
+}
+
+.ct-swatch-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Right column: mode toggle */
+.ct-mode-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ct-mode-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  min-width: 54px;
+  text-align: center;
+}
+
+.ct-mode-btn:hover {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
+.ct-mode-btn.active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--hover-bg);
+}
+
+/* ── Image Preset Picker (Background Presets) ─────────────── */
+.img-preset-picker {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.img-preset-btn {
+  flex: 1;
+  height: 52px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--input-bg);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s;
+  padding: 0;
+}
+
+.img-preset-btn:hover { border-color: var(--text-dim); }
+.img-preset-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.img-preset-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
 }
