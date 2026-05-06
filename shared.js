@@ -13,7 +13,7 @@ const ASPECT_RATIOS = {
 
 // ── Translation ──────────────────────────────────────────────
 // Paste the deployed Cloudflare Worker URL here. See worker/README.md.
-const TRANSLATION_WORKER_URL = '';
+const TRANSLATION_WORKER_URL = 'https://pai-translate.team-15d.workers.dev';
 
 // English first (canonical source). The rest are the supported targets.
 const LANGUAGES = [
@@ -600,9 +600,13 @@ function _hashString(s) {
 }
 
 function getEnglishSourceHash() {
+  // Concatenate fields with a NUL byte so 'ab|cd' and 'a|bcd' don't collide.
+  // String.fromCharCode keeps the separator out of source-code byte form so
+  // editors/formatters can't silently mangle it.
+  const sep = String.fromCharCode(0);
   return _hashString(
-    (state.headlineText || '') + '
-    (state.footerByline || '') + '
+    (state.headlineText || '') + sep +
+    (state.footerByline || '') + sep +
     (state.headlineHighlightWords || '')
   );
 }
