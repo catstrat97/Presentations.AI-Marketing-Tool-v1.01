@@ -13,3 +13,9 @@ build/
 
 # Logs
 *.log
+
+# Claude Code per-project local settings
+.claude/
+
+# Wrangler (Cloudflare Workers CLI) local state — login, build cache, tmp.
+worker/.wrangler/
