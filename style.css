@@ -34,6 +34,8 @@
   --text: #2B2B2B;
   --text-dim: #71717a;
 
+  --slider-fill: var(--border);
+
   /* Accent = high-contrast "selected" / "active" foreground.
      On a light theme this is the dark colour; foreground text on accent
      is white. Used by primary buttons, active segmented buttons,
@@ -519,6 +521,7 @@ body {
   overflow: hidden;
   cursor: ew-resize;
   margin-bottom: 3px;
+  background: #fff;
 }
 
 /* Fill bar — grows from left based on --fill custom property */
@@ -529,7 +532,7 @@ body {
   left: 0;
   width: var(--fill, 0%);
   height: 100%;
-  background: var(--text-dim);
+  background: var(--slider-fill);
   border-radius: 6px 0 0 6px;
   pointer-events: none;
   transition: width 0.05s linear;
