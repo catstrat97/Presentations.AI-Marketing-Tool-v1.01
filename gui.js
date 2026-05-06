@@ -1113,8 +1113,67 @@ function buildTranslateSection(ct) {
     }
   });
 
+  // ── Export all languages (.zip) ──────────────────────────
+  const exportAllBtn = document.createElement('button');
+  exportAllBtn.type = 'button';
+  exportAllBtn.className = 'btn translate-btn export-all-btn';
+  exportAllBtn.textContent = '↓ Export all (.zip)';
+  ct.appendChild(exportAllBtn);
+
+  exportAllBtn.addEventListener('click', async () => {
+    if (typeof JSZip === 'undefined') {
+      setStatus('JSZip not loaded — check your internet connection.', true);
+      return;
+    }
+    const langs = ['en', ...Object.keys(state.translations || {})];
+    if (langs.length === 1) {
+      setStatus('No translations stored — translate something first.', true);
+      return;
+    }
+    exportAllBtn.disabled = true;
+    btn.disabled = true;
+    exportAllBtn.textContent = 'Exporting…';
+    try {
+      const zip = await runExportAll(langs, lang => {
+        setStatus(`Rendering ${lang}…`);
+      });
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      window._downloadBlob(zipBlob, `slides-${Date.now()}.zip`);
+      setStatus(`Exported ${langs.length} languages.`);
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+    } finally {
+      exportAllBtn.disabled = false;
+      btn.disabled = false;
+      exportAllBtn.textContent = '↓ Export all (.zip)';
+    }
+  });
+
   // Expose so randomize / preset-load paths can refresh the dropdown later
   window._translateRefresh = rebuildPreviewOptions;
+}
+
+async function runExportAll(langs, onProgress) {
+  const zip = new JSZip();
+  const savedLang = state.previewLang;
+  try {
+    for (const lang of langs) {
+      onProgress?.(lang);
+      state.previewLang = lang;
+      updateOverlays();                    // updates DOM overlays
+      if (window._p5Redraw) window._p5Redraw(); // synchronous redraw of p5 canvas
+      // Yield once so the browser can apply layout from updateOverlays
+      // (the export reads getBoundingClientRect on overlay elements).
+      await new Promise(r => setTimeout(r, 0));
+      const blob = await window._exportToBlob();
+      if (blob) zip.file(`${lang}.png`, blob);
+    }
+  } finally {
+    state.previewLang = savedLang;
+    updateOverlays();
+    if (window._p5Redraw) window._p5Redraw();
+  }
+  return zip;
 }
 
 async function runTranslate(targetLanguages) {

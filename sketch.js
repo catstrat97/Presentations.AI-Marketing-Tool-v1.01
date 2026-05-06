@@ -931,25 +931,25 @@ const sketch = function(p) {
     ctx.restore();
   }
 
-  window._exportCanvas = async () => {
-    const ES  = 2;                      // export pixel multiplier (2× = retina)
+  // Render the current artboard to a 2× PNG Blob without triggering a
+  // download. The single-PNG export wraps this; "Export all languages"
+  // calls it once per language and zips the results.
+  async function _exportToBlob() {
+    const ES  = 2;
     const EW  = cw * ES;
     const EH  = ch * ES;
     const artboard = document.getElementById('artboard');
-    if (!artboard) return;
+    if (!artboard) return null;
     const ab = artboard.getBoundingClientRect();
 
-    // 1. Create export canvas
     const exp = document.createElement('canvas');
     exp.width  = EW;
     exp.height = EH;
     const ctx  = exp.getContext('2d');
 
-    // 2. Draw p5 canvas (background + graphics)
     const p5c = document.querySelector('#p5-target canvas');
     if (p5c) ctx.drawImage(p5c, 0, 0, EW, EH);
 
-    // 3. Composite overlays: image → headline → footer (top-most last)
     try {
       if (state.showImage)    await _drawImages(ctx, ab, ES);
       if (state.showHeadline)       _drawHeadline(ctx, ab, ES);
@@ -958,19 +958,29 @@ const sketch = function(p) {
       console.warn('Export overlay error:', err);
     }
 
-    // 4. Emit PNG
-    exp.toBlob(blob => {
-      if (!blob) { console.error('Export toBlob failed'); return; }
-      const url  = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = `generative-${Date.now()}.png`;
-      link.href = url;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 'image/png');
+    return new Promise(resolve => exp.toBlob(resolve, 'image/png'));
+  }
+
+  function _downloadBlob(blob, filename) {
+    if (!blob) { console.error('No blob to download'); return; }
+    const url  = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  window._exportCanvas = async () => {
+    const blob = await _exportToBlob();
+    const lang = state.previewLang || 'en';
+    _downloadBlob(blob, `generative-${lang}-${Date.now()}.png`);
   };
+
+  window._exportToBlob   = _exportToBlob;
+  window._downloadBlob   = _downloadBlob;
 };
 
 new p5(sketch);
