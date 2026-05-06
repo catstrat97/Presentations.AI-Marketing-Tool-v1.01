@@ -869,9 +869,10 @@ function mkSegmented({ id, label, key, options, onChange, variant }) {
     if (title) btn.title = title;
     btn.dataset.value = value;
     btn.addEventListener('click', () => {
+      const prev = state[key];
       state[key] = value;
       seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === value));
-      if (onChange) onChange(value); else redraw();
+      if (onChange) onChange(value, prev); else redraw();
     });
     seg.appendChild(btn);
   });
@@ -2069,10 +2070,21 @@ function buildGUI() {
         ['9:16',   ICONS.asp9x16,  '9:16 — Story'],
         ['1.91:1', ICONS.asp191x1, '1.91:1 — Wide'],
       ],
-      onChange: v => {
+      onChange: (v, prev) => {
+        // Save the leaving aspect's current values so they're restored
+        // verbatim if the user switches back. (Skip when prev === v —
+        // happens on the very first click of the active button.)
+        if (prev && prev !== v) {
+          state.aspectOverrides[prev] = snapshotAspectFields();
+        }
+        // Prefer the user's stored override for the new aspect; fall back
+        // to fresh defaults the first time they visit it.
+        const override = state.aspectOverrides[v];
+        applyAspectFields(override || ASPECT_RATIO_DEFAULTS[v]);
+
         updateAspectLabel(v);
-        const defaults = ASPECT_RATIO_DEFAULTS[v];
-        if (defaults) { Object.assign(state, defaults); syncControlsToState(); updateOverlays(); }
+        syncControlsToState();
+        updateOverlays();
         if (window._p5Resize) window._p5Resize();
       },
     }));

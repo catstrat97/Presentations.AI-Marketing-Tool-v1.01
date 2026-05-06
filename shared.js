@@ -120,6 +120,31 @@ const ASPECT_RATIO_DEFAULTS = Object.fromEntries(
   )
 );
 
+// Union of every field name aspect defaults touch. Used to snapshot the
+// user's per-aspect tweaks on aspect-switch so they don't get clobbered
+// when switching back. Built from the merged objects so adding a knob to
+// only one aspect still gets picked up.
+const ASPECT_FIELDS = (() => {
+  const fields = new Set();
+  Object.values(ASPECT_RATIO_DEFAULTS).forEach(d =>
+    Object.keys(d).forEach(k => fields.add(k))
+  );
+  return fields;
+})();
+
+function snapshotAspectFields() {
+  const out = {};
+  ASPECT_FIELDS.forEach(k => { out[k] = state[k]; });
+  return out;
+}
+
+function applyAspectFields(obj) {
+  if (!obj) return;
+  ASPECT_FIELDS.forEach(k => {
+    if (obj[k] !== undefined) state[k] = obj[k];
+  });
+}
+
 // ── Built-in Palettes ────────────────────────────────────────
 const PALETTES = {
   custom: { label: 'Custom', stops: null },
@@ -435,6 +460,14 @@ const state = {
   // sourceHash records the English inputs at translate time so we can detect staleness.
   previewLang:   'en',
   translations:  {},
+
+  // ── Per-aspect override memory ──
+  // When the user tweaks an aspect-specific field (font size, image scale,
+  // etc.) and then switches aspect, we snapshot their tweaks here so
+  // switching back restores them instead of resetting to defaults.
+  // Keyed by aspect ratio code; each value is a partial of the same shape
+  // as ASPECT_RATIO_DEFAULTS[k].
+  aspectOverrides: {},
 };
 
 // ── Helpers ──────────────────────────────────────────────────
