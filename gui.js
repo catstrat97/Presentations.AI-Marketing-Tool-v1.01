@@ -230,12 +230,13 @@ function buildInnerPlaceholder(src) {
 // Build innerHTML for headline: wrap highlight words in .headline-hl spans.
 // Only called when the headline element is NOT focused (to avoid caret disruption).
 function _renderHeadlineHTML() {
-  const hlWords = parseHighlightWords(state.headlineHighlightWords);
+  const display = getDisplayText();
+  const hlWords = parseHighlightWords(display.headlineHighlightWords);
   if (hlWords.size === 0) return null; // signal: use textContent instead
 
   const hlColor = state.headlineHighlightColor || '#f66a24';
   // Process each line, wrapping whole-word matches in spans
-  const lines = (state.headlineText || '').split('\n');
+  const lines = display.headlineText.split('\n');
   const htmlLines = lines.map(line => {
     // Split on word boundaries but preserve spaces
     return line.replace(/(\S+)/g, (word) => {
@@ -255,15 +256,23 @@ function updateOverlays() {
   const byline      = document.getElementById('footer-byline');
 
   if (headEl && overlayHead) {
+    const display = getDisplayText();
     // Don't stomp the caret while the user is editing in-place
     if (document.activeElement !== headEl) {
       const html = _renderHeadlineHTML();
       if (html !== null) {
         headEl.innerHTML = html;
       } else {
-        headEl.textContent = state.headlineText || '';
+        headEl.textContent = display.headlineText;
       }
     }
+    // RTL when previewing a right-to-left language; clear otherwise.
+    headEl.dir       = getLangDir(display.lang);
+    overlayHead.dir  = getLangDir(display.lang);
+    // Edits only apply to English. In a translated preview, the canvas is
+    // read-only — clicking the headline does nothing until the user
+    // switches preview back to English.
+    headEl.contentEditable = display.lang === 'en' ? 'true' : 'false';
 
     overlayHead.style.textAlign    = state.headlineAlign;
     overlayHead.style.display      = state.showHeadline ? 'flex' : 'none';
@@ -298,10 +307,12 @@ function updateOverlays() {
   updateImageDistribution();
 
   if (overlayFoot && byline) {
-    byline.textContent            = state.footerByline;
+    const display = getDisplayText();
+    byline.textContent            = display.footerByline;
     byline.style.textAlign        = state.footerAlign;
     byline.style.letterSpacing    = `calc(${state.footerTracking}px * var(--scale))`;
     byline.style.fontWeight       = state.footerFont;
+    byline.dir                    = getLangDir(display.lang);
     overlayFoot.style.display     = state.showFooter ? 'flex' : 'none';
   }
 
@@ -2554,9 +2565,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inline-editable headline on the canvas, kept in sync with panel textarea
   const hlNode = document.getElementById('headline-text');
   if (hlNode) {
-    hlNode.contentEditable = 'true';
     hlNode.spellcheck = false;
-    // On focus: switch to plain-text mode so user edits raw text
+    // contentEditable is set per-render in updateOverlays — only true when
+    // previewLang === 'en'. We attach the listeners unconditionally; they
+    // simply don't fire when the element isn't editable.
+
+    // On focus: switch to plain-text mode so user edits raw text.
+    // Never invoked in non-English preview because contentEditable is off.
     hlNode.addEventListener('focus', () => {
       hlNode.textContent = state.headlineText || '';
     });

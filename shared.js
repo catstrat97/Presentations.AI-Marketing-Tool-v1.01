@@ -11,6 +11,27 @@ const ASPECT_RATIOS = {
   '1.91:1': { w: 1.91, h: 1 },
 };
 
+// ── Translation ──────────────────────────────────────────────
+// Paste the deployed Cloudflare Worker URL here. See worker/README.md.
+const TRANSLATION_WORKER_URL = '';
+
+// English first (canonical source). The rest are the supported targets.
+const LANGUAGES = [
+  { code: 'en',    label: 'English (United States)', dir: 'ltr' },
+  { code: 'pt-BR', label: 'Português (Brasil)',      dir: 'ltr' },
+  { code: 'id',    label: 'Indonesian',              dir: 'ltr' },
+  { code: 'es',    label: 'Español',                 dir: 'ltr' },
+  { code: 'de',    label: 'Deutsch',                 dir: 'ltr' },
+  { code: 'fr',    label: 'Français',                dir: 'ltr' },
+  { code: 'tr',    label: 'Türkçe',                  dir: 'ltr' },
+  { code: 'zh',    label: '中文',                     dir: 'ltr' },
+  { code: 'ja',    label: '日本語',                   dir: 'ltr' },
+  { code: 'ko',    label: '한국어',                    dir: 'ltr' },
+  { code: 'ar',    label: 'عربي',                     dir: 'rtl' },
+];
+
+const TRANSLATION_TARGET_LANGS = LANGUAGES.filter(l => l.code !== 'en');
+
 // ── Per-Aspect-Ratio Layout Defaults ────────────────────────
 // Applied automatically when the user switches aspect ratio.
 // All values use the 2696px design-unit coordinate system
@@ -407,6 +428,13 @@ const state = {
   footerAlign:     'left',
   footerTracking:  -1.63,
   footerFont:      '500',
+
+  // ── Translation ──
+  // previewLang: which language the canvas displays. 'en' = canonical source.
+  // translations: { [lang]: { headlineText, footerByline, headlineHighlightWords, sourceHash } }
+  // sourceHash records the English inputs at translate time so we can detect staleness.
+  previewLang:   'en',
+  translations:  {},
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -558,6 +586,57 @@ function shuffleStyleImages() {
     [idx[i], idx[j]] = [idx[j], idx[i]];
   }
   state.imageStyleOrder = idx;
+}
+
+// ── Translation Helpers ──────────────────────────────────────
+// getDisplayText is the single source of truth for "what text should be
+// rendered right now" — both the live DOM update and the canvas export
+// path call it, so they cannot drift across English vs translations.
+
+function _hashString(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h.toString(36);
+}
+
+function getEnglishSourceHash() {
+  return _hashString(
+    (state.headlineText || '') + ' ' +
+    (state.footerByline || '') + ' ' +
+    (state.headlineHighlightWords || '')
+  );
+}
+
+function getDisplayText() {
+  const lang = state.previewLang || 'en';
+  const t = (lang !== 'en' && state.translations) ? state.translations[lang] : null;
+  if (!t) {
+    return {
+      lang: 'en',
+      headlineText:           state.headlineText || '',
+      footerByline:           state.footerByline || '',
+      headlineHighlightWords: state.headlineHighlightWords || '',
+      isStale: false,
+    };
+  }
+  return {
+    lang,
+    headlineText:           t.headlineText || '',
+    footerByline:           t.footerByline || '',
+    headlineHighlightWords: t.headlineHighlightWords || '',
+    isStale: t.sourceHash !== getEnglishSourceHash(),
+  };
+}
+
+function isTranslationStale(lang) {
+  const t = state.translations && state.translations[lang];
+  if (!t) return false;
+  return t.sourceHash !== getEnglishSourceHash();
+}
+
+function getLangDir(code) {
+  const lang = LANGUAGES.find(l => l.code === code);
+  return lang ? lang.dir : 'ltr';
 }
 
 // ── Headline Highlight Helpers ───────────────────────────────

@@ -804,7 +804,9 @@ const sketch = function(p) {
     const textX = state.footerAlign === 'right'  ? rect.x + rect.w - padR :
                   state.footerAlign === 'center' ? rect.x + rect.w / 2   :
                   rect.x + padL;
-    ctx.fillText(state.footerByline, textX, rect.y + rect.h / 2);
+    const display = getDisplayText();
+    if (getLangDir(display.lang) === 'rtl' && 'direction' in ctx) ctx.direction = 'rtl';
+    ctx.fillText(display.footerByline, textX, rect.y + rect.h / 2);
     ctx.restore();
 
     // ── Logo ───────────────────────────────────────────────────
@@ -842,11 +844,14 @@ const sketch = function(p) {
       ctx.fillRect(headRect.x, headRect.y, headRect.w, headRect.h);
     }
 
+    const display = getDisplayText();
+
     ctx.save();
     ctx.font         = `${state.headlineFont} ${fontSize}px "Innovator Grotesk", sans-serif`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
     ctx.textBaseline = 'top';
     ctx.textAlign    = 'left'; // always left; we compute x manually per line
+    if (getLangDir(display.lang) === 'rtl' && 'direction' in ctx) ctx.direction = 'rtl';
 
     // Available text width mirrors the DOM element's rendered width exactly,
     // so canvas word-wrap matches the CSS pre-wrap line breaks.
@@ -874,12 +879,12 @@ const sketch = function(p) {
     }
 
     // Respect explicit \n breaks, then word-wrap each paragraph
-    const wrappedLines = (state.headlineText || '')
+    const wrappedLines = display.headlineText
       .split('\n')
       .flatMap(_wrapPara);
 
     // ── Highlight word set ────────────────────────────────────
-    const hlWordSet = parseHighlightWords(state.headlineHighlightWords);
+    const hlWordSet = parseHighlightWords(display.headlineHighlightWords);
     const hlColor   = state.headlineHighlightColor || '#f66a24';
 
     const align = state.headlineAlign || 'center';
