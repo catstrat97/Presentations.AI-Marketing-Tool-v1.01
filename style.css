@@ -27,10 +27,10 @@
 
 :root {
   --bg: #EDEDED;
-  --surface: #111113;
-  --bg-panel: #0a0a0a;
+  --surface: #F9F9F9;
+  --bg-panel: #FFFFFF;
   --border: #222226;
-  --text: #fafafa;
+  --text: #2B2B2B;
   --text-dim: #71717a;
   --accent: #fafafa;
   --accent-fg: #09090b;
@@ -65,7 +65,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
   position: relative;
   overflow: hidden;
   /* Reserve space on the right for the floating panel (320px panel
@@ -248,7 +247,6 @@ body {
   width: 320px;
   max-height: calc(100vh - 48px);
   background: var(--bg-panel);
-  border: 1px solid var(--border);
   border-radius: 14px;
   display: flex;
   flex-direction: column;
@@ -256,20 +254,13 @@ body {
   flex-shrink: 0;
   z-index: 100;
   font-family: var(--font);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.5),
-    0 4px 12px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow: 4px 0px 16px rgba(0, 0, 0, 0.1);
   user-select: none;
 }
 
 /* Canvas area should fill full width when panel floats above it */
 #app {
   position: relative;
-}
-
-#canvas-wrap {
-  width: 100%;
 }
 
 #panel-header {
@@ -315,7 +306,7 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 14px 24px;
+  padding: 12px;
 }
 
 #panel-scroll::-webkit-scrollbar {
@@ -1628,7 +1619,6 @@ input[type=color]::-webkit-color-swatch {
 .tp-fldv,
 .tp-fld {
   background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
   border-radius: 10px !important;
   margin-bottom: 10px !important;
   padding: 0 14px !important;
@@ -1706,7 +1696,7 @@ input[type=color]::-webkit-color-swatch {
   font-weight: 600 !important;
   letter-spacing: -0.01em !important;
   line-height: 1.2 !important;
-  color: #ffffff !important;
+  color: var(--text) !important;
   opacity: 1 !important;
   text-transform: none !important;
   text-align: left !important;
@@ -1924,10 +1914,6 @@ input[type=color]::-webkit-color-swatch {
 #panel-header h2 {
   display: none;
   /* redundant subtitle */
-}
-
-#panel-scroll {
-  padding: 0 18px 24px;
 }
 
 #panel-footer {
