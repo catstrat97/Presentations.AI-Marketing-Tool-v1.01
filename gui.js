@@ -230,12 +230,7 @@ function buildInnerPlaceholder(src) {
 // Build innerHTML for headline: wrap highlight words in .headline-hl spans.
 // Only called when the headline element is NOT focused (to avoid caret disruption).
 function _renderHeadlineHTML() {
-  const hlWords = new Set(
-    (state.headlineHighlightWords || '')
-      .split(/[\s,]+/)
-      .map(w => w.trim().toLowerCase())
-      .filter(Boolean)
-  );
+  const hlWords = parseHighlightWords(state.headlineHighlightWords);
   if (hlWords.size === 0) return null; // signal: use textContent instead
 
   const hlColor = state.headlineHighlightColor || '#f66a24';
@@ -244,8 +239,7 @@ function _renderHeadlineHTML() {
   const htmlLines = lines.map(line => {
     // Split on word boundaries but preserve spaces
     return line.replace(/(\S+)/g, (word) => {
-      const clean = word.replace(/[^a-zA-Z0-9''-]/g, '').toLowerCase();
-      if (hlWords.has(clean)) {
+      if (hlWords.has(normalizeHighlightKey(word))) {
         return `<span class="headline-hl" style="color:${hlColor}">${word}</span>`;
       }
       return word;

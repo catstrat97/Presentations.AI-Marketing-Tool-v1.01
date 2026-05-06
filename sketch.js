@@ -792,7 +792,7 @@ const sketch = function(p) {
 
     // ── Footer byline ──────────────────────────────────────────
     ctx.save();
-    ctx.font         = `${state.footerFont} ${fontSize}px "Innovators Grotesk", sans-serif`;
+    ctx.font         = `${state.footerFont} ${fontSize}px "Innovator Grotesk", sans-serif`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
     ctx.fillStyle    = textColor;
     ctx.textBaseline = 'middle';
@@ -841,7 +841,7 @@ const sketch = function(p) {
     }
 
     ctx.save();
-    ctx.font         = `${state.headlineFont} ${fontSize}px "Innovators Grotesk", sans-serif`;
+    ctx.font         = `${state.headlineFont} ${fontSize}px "Innovator Grotesk", sans-serif`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
     ctx.textBaseline = 'top';
     ctx.textAlign    = 'left'; // always left; we compute x manually per line
@@ -877,13 +877,8 @@ const sketch = function(p) {
       .flatMap(_wrapPara);
 
     // ── Highlight word set ────────────────────────────────────
-    const hlWordSet = new Set(
-      (state.headlineHighlightWords || '')
-        .split(/[\s,]+/)
-        .map(w => w.trim().toLowerCase())
-        .filter(Boolean)
-    );
-    const hlColor = state.headlineHighlightColor || '#f66a24';
+    const hlWordSet = parseHighlightWords(state.headlineHighlightWords);
+    const hlColor   = state.headlineHighlightColor || '#f66a24';
 
     const align = state.headlineAlign || 'center';
 
@@ -902,8 +897,7 @@ const sketch = function(p) {
       const lineW    = ctx.measureText(line).width;
       const lineWordsArr = line.split(' ');
       const hasHL    = hlWordSet.size > 0 &&
-                       lineWordsArr.some(w =>
-                         hlWordSet.has(w.toLowerCase().replace(/[^a-z0-9'-]/g, '')));
+                       lineWordsArr.some(w => hlWordSet.has(normalizeHighlightKey(w)));
 
       if (!hasHL) {
         // Fast path: draw the whole line at once
@@ -918,8 +912,7 @@ const sketch = function(p) {
             ctx.fillText(' ', x, y);
             x += ctx.measureText(' ').width;
           }
-          const key = word.toLowerCase().replace(/[^a-z0-9'-]/g, '');
-          ctx.fillStyle = hlWordSet.has(key) ? hlColor : textColor;
+          ctx.fillStyle = hlWordSet.has(normalizeHighlightKey(word)) ? hlColor : textColor;
           ctx.fillText(word, x, y);
           x += ctx.measureText(word).width;
         });

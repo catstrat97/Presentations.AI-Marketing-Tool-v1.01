@@ -571,6 +571,23 @@ function shuffleStyleImages() {
   state.imageStyleOrder = idx;
 }
 
+// ── Headline Highlight Helpers ───────────────────────────────
+// Both the live DOM headline (gui.js) and the PNG export (sketch.js)
+// match against this same parsed set so the two render paths cannot drift.
+function parseHighlightWords(str) {
+  return new Set(
+    (str || '')
+      .split(/[\s,]+/)
+      .map(w => w.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+// Keeps straight + curly apostrophes so "don't" matches either form.
+function normalizeHighlightKey(word) {
+  return word.toLowerCase().replace(/[^a-z0-9'‘’-]/g, '');
+}
+
 // ── Default Presets ──────────────────────────────────────────
 // Seeded into localStorage on first load if no presets exist yet.
 // To reset to these defaults, clear localStorage key 'pai-tool-presets-v1'.
