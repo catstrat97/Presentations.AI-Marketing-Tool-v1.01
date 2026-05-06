@@ -341,17 +341,21 @@ function _withHeadlineBoundsIfFilled(p, fn) {
 }
 
 // ── renderComposition ────────────────────────────────────────
-function renderComposition(p) {
-  _withHeadlineBoundsIfFilled(p, () => _renderCompositionImpl(p));
+// alphaOverride: when the off-screen buffer composites with globalOpacity,
+// it calls in with 1.0 so each shape draws at full alpha and the buffer
+// itself is composited at state.opacity. Defaults to state.opacity.
+function renderComposition(p, alphaOverride) {
+  _withHeadlineBoundsIfFilled(p, () => _renderCompositionImpl(p, alphaOverride));
 }
 
-function _renderCompositionImpl(p) {
+function _renderCompositionImpl(p, alphaOverride) {
   const count   = Math.max(2, Math.floor(state.rectCount));
   const spacing = Math.max(0, state.spacing);
   const dir     = state.baseline;
   const sym     = state.symmetry;
   const mirror  = state.mirrorY;
   const dc      = p.drawingContext;
+  const baseAlpha = alphaOverride ?? state.opacity;
 
   const isH = dir === 'bottom' || dir === 'top';
 
@@ -377,7 +381,7 @@ function _renderCompositionImpl(p) {
     if (state.flipCurve) tVal = 1 - tVal;
 
     const growth = maxGrowth * Math.max(0.03, tVal);
-    const alpha  = state.opacity;
+    const alpha  = baseAlpha;
     const fillT  = count > 1 ? i / (count - 1) : 0;
     const slotC  = spacing + slotSize / 2 + i * (slotSize + spacing);
 
@@ -423,12 +427,13 @@ function getHeadlineBBox() {
 }
 
 // ── renderCircularComposition ────────────────────────────────
-function renderCircularComposition(p) {
-  _withHeadlineBoundsIfFilled(p, () => _renderCircularCompositionImpl(p));
+function renderCircularComposition(p, alphaOverride) {
+  _withHeadlineBoundsIfFilled(p, () => _renderCircularCompositionImpl(p, alphaOverride));
 }
 
-function _renderCircularCompositionImpl(p) {
+function _renderCircularCompositionImpl(p, alphaOverride) {
   const count = Math.max(2, Math.floor(state.circleCount));
+  const baseAlpha = alphaOverride ?? state.opacity;
   const maxD  = state.circleDiameter;
   // Smallest circle = 25 % of max (floored at 60 px) so it stays visible.
   const minD  = Math.max(60, maxD * 0.25);
@@ -522,7 +527,7 @@ function _renderCircularCompositionImpl(p) {
       const finalY = py + dy * state.circleSpacingY;
 
       const gradFlip = circGradDir === 'horizontal' ? isHMirror : isVMirror;
-      const alpha    = state.opacity;
+      const alpha    = baseAlpha;
       const fill     = computeRectFill(dc, fillT, finalX - R, finalY - R, currentD, currentD, alpha, gradFlip);
       const fillRgb  = state.innerGlow ? extractFillRgb(fillT, gradFlip) : null;
       renderCircle(p, finalX, finalY, R, fill, fillRgb);
@@ -612,16 +617,13 @@ const sketch = function(p) {
         const pg = window._pg;
         pg.clear();
 
-        const savedOpacity = state.opacity;
-        state.opacity = 1.0;
         if (state.compositionType === 'circular') {
-          renderCircularComposition(pg);
+          renderCircularComposition(pg, 1.0);
         } else {
-          renderComposition(pg);
+          renderComposition(pg, 1.0);
         }
-        state.opacity = savedOpacity;
 
-        p.drawingContext.globalAlpha = savedOpacity;
+        p.drawingContext.globalAlpha = state.opacity;
         p.image(pg, 0, 0);
         p.drawingContext.globalAlpha = 1.0;
       } else {
