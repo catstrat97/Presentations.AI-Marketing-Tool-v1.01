@@ -1,0 +1,3 @@
+name = "pai-translate"
+main = "translate.js"
+compatibility_date = "2025-01-01"
