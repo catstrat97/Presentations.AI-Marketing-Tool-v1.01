@@ -1,9 +1,9 @@
 // ── shared.js ─────────────────────────────────────────────────
-// Loaded first. Globals: state, getCurveValue, sampleGradient,
-// hexToRgb, lerpColor, rgbToHex, hslToHex, ASPECT_RATIOS,
-// addGradientStop, subdivideGradient, PALETTES, BG_PALETTE_MAP
+// ES module. Named exports cover the shared `state` object,
+// palette / gradient constants, per-aspect defaults, curve / colour
+// helpers, image-style registry, and translation helpers.
 
-const ASPECT_RATIOS = {
+export const ASPECT_RATIOS = {
   '1:1':  { w: 1, h: 1 },
   '4:5':  { w: 4, h: 5 },
   '16:9': { w: 16, h: 9 },
@@ -13,10 +13,10 @@ const ASPECT_RATIOS = {
 
 // ── Translation ──────────────────────────────────────────────
 // Paste the deployed Cloudflare Worker URL here. See worker/README.md.
-const TRANSLATION_WORKER_URL = 'https://pai-translate.team-15d.workers.dev';
+export const TRANSLATION_WORKER_URL = 'https://pai-translate.team-15d.workers.dev';
 
 // English first (canonical source). The rest are the supported targets.
-const LANGUAGES = [
+export const LANGUAGES = [
   { code: 'en',    label: 'English (United States)', dir: 'ltr' },
   { code: 'pt-BR', label: 'Português (Brasil)',      dir: 'ltr' },
   { code: 'id',    label: 'Indonesian',              dir: 'ltr' },
@@ -30,7 +30,7 @@ const LANGUAGES = [
   { code: 'ar',    label: 'عربي',                     dir: 'rtl' },
 ];
 
-const TRANSLATION_TARGET_LANGS = LANGUAGES.filter(l => l.code !== 'en');
+export const TRANSLATION_TARGET_LANGS = LANGUAGES.filter(l => l.code !== 'en');
 
 // ── Per-Aspect-Ratio Layout Defaults ────────────────────────
 // Applied automatically when the user switches aspect ratio.
@@ -114,7 +114,7 @@ const _ASPECT_DEFAULTS_OVERRIDES = {
   },
 };
 
-const ASPECT_RATIO_DEFAULTS = Object.fromEntries(
+export const ASPECT_RATIO_DEFAULTS = Object.fromEntries(
   Object.entries(_ASPECT_DEFAULTS_OVERRIDES).map(
     ([k, v]) => [k, { ..._ASPECT_DEFAULTS_BASE, ...v }]
   )
@@ -124,7 +124,7 @@ const ASPECT_RATIO_DEFAULTS = Object.fromEntries(
 // user's per-aspect tweaks on aspect-switch so they don't get clobbered
 // when switching back. Built from the merged objects so adding a knob to
 // only one aspect still gets picked up.
-const ASPECT_FIELDS = (() => {
+export const ASPECT_FIELDS = (() => {
   const fields = new Set();
   Object.values(ASPECT_RATIO_DEFAULTS).forEach(d =>
     Object.keys(d).forEach(k => fields.add(k))
@@ -132,13 +132,13 @@ const ASPECT_FIELDS = (() => {
   return fields;
 })();
 
-function snapshotAspectFields() {
+export function snapshotAspectFields() {
   const out = {};
   ASPECT_FIELDS.forEach(k => { out[k] = state[k]; });
   return out;
 }
 
-function applyAspectFields(obj) {
+export function applyAspectFields(obj) {
   if (!obj) return;
   ASPECT_FIELDS.forEach(k => {
     if (obj[k] !== undefined) state[k] = obj[k];
@@ -146,7 +146,7 @@ function applyAspectFields(obj) {
 }
 
 // ── Built-in Palettes ────────────────────────────────────────
-const PALETTES = {
+export const PALETTES = {
   custom: { label: 'Custom', stops: null },
 
   marketingWarm: {
@@ -202,7 +202,7 @@ const PALETTES = {
 // ── Background Gradient Presets — same stops as shape palettes ──
 // Each entry mirrors the colour stops from the matching PALETTES entry
 // so the background gradient always matches what's on the shapes.
-const BG_GRADIENTS = {
+export const BG_GRADIENTS = {
   marketingWarm: {
     label: 'Warm Dark',
     theme: 'warm',
@@ -234,7 +234,7 @@ const BG_GRADIENTS = {
 };
 
 // ── Background Presets — filtered by palette tone + mode ─────
-const BG_PALETTE_MAP = {
+export const BG_PALETTE_MAP = {
   // Dark mode swatches (default)
   'warm-dark': [
     { color: '#361E1C', label: 'Dark Umber' },
@@ -304,7 +304,7 @@ const BG_PALETTE_MAP = {
 };
 
 // ── Image Presets Registry ────────────────────────────────────
-const IMAGE_STYLES = {
+export const IMAGE_STYLES = {
   style1: [
     'Image Presets/Style 1/Frame 2147229599.png',
     'Image Presets/Style 1/Frame 2147229600.png',
@@ -335,7 +335,7 @@ const IMAGE_STYLES = {
 };
 
 // ── Centralized State ────────────────────────────────────────
-const state = {
+export const state = {
   aspectRatio: '1:1',
 
   compositionType: 'rectangle',      // 'rectangle' | 'circular'
@@ -473,23 +473,23 @@ const state = {
 // ── Helpers ──────────────────────────────────────────────────
 
 /** Returns luma (0–255) for a hex color */
-function getColorLuma(hex) {
+export function getColorLuma(hex) {
   const [r, g, b] = hexToRgb(hex);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 /** Returns 'black' or 'white' for text over the given bg hex */
-function getTextColorForBg(hex) {
+export function getTextColorForBg(hex) {
   return getColorLuma(hex) > 140 ? '#000000' : '#ffffff';
 }
 
 /** Returns the active theme ('warm' | 'cool'). Theme is the single source of truth. */
-function getPaletteTone() {
+export function getPaletteTone() {
   return state.theme || 'warm';
 }
 
 /** Returns the BG solid preset list for the active theme + colorMode */
-function getActiveBgPresets() {
+export function getActiveBgPresets() {
   const key = state.theme + '-' + (state.colorMode || 'dark');
   return BG_PALETTE_MAP[key] || BG_PALETTE_MAP[state.theme] || BG_PALETTE_MAP.custom;
 }
@@ -497,7 +497,7 @@ function getActiveBgPresets() {
 // ── Curve ────────────────────────────────────────────────────
 function _bx(t, p1x, p2x) { return 3*p1x*t*(1-t)*(1-t) + 3*p2x*t*t*(1-t) + t*t*t; }
 function _by(t, p1y, p2y) { return 3*p1y*t*(1-t)*(1-t) + 3*p2y*t*t*(1-t) + t*t*t; }
-function cubicBezier(t, p1x, p1y, p2x, p2y) {
+export function cubicBezier(t, p1x, p1y, p2x, p2y) {
   let tg = t;
   for (let i = 0; i < 8; i++) {
     const err = _bx(tg, p1x, p2x) - t;
@@ -510,14 +510,14 @@ function cubicBezier(t, p1x, p1y, p2x, p2y) {
 
 // ── Seeded noise helpers ─────────────────────────────────────
 // Integer hash → float in [0, 1).  Fast and well-distributed.
-function seededHash(n) {
+export function seededHash(n) {
   n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
   n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
   return ((n ^ (n >>> 16)) >>> 0) / 0x100000000;
 }
 // 1-D value noise: smoothly interpolates between seeded lattice points.
 // Returns [0, 1].  Changing seed gives a completely different curve shape.
-function valueNoise1D(t, seed) {
+export function valueNoise1D(t, seed) {
   const GRID = 24;
   const ft   = t * GRID;
   const i    = Math.floor(ft);
@@ -528,7 +528,7 @@ function valueNoise1D(t, seed) {
   return v0 + (v1 - v0) * s;
 }
 
-function getCurveValue(t, type) {
+export function getCurveValue(t, type) {
   if (type === 'flat') return 1;
   switch (type) {
     case 'linear':     return t;
@@ -543,17 +543,17 @@ function getCurveValue(t, type) {
 }
 
 // ── Color Utilities ──────────────────────────────────────────
-function hexToRgb(hex) {
+export function hexToRgb(hex) {
   const h = hex.replace('#', '');
   return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
 }
-function rgbToHex(r, g, b) {
+export function rgbToHex(r, g, b) {
   return '#' + [r,g,b].map(v => Math.round(v).toString(16).padStart(2,'0')).join('');
 }
-function lerpColor(a, b, t) {
+export function lerpColor(a, b, t) {
   return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];
 }
-function hslToHex(h, s, l) {
+export function hslToHex(h, s, l) {
   s/=100; l/=100;
   const a = s * Math.min(l, 1-l);
   const f = n => { const k=(n+h/30)%12, v=l-a*Math.max(-1,Math.min(k-3,9-k,1)); return Math.round(v*255).toString(16).padStart(2,'0'); };
@@ -561,7 +561,7 @@ function hslToHex(h, s, l) {
 }
 
 // ── Gradient Sampling ────────────────────────────────────────
-function sampleGradient(t, stops) {
+export function sampleGradient(t, stops) {
   if (!stops || !stops.length) return [255,255,255];
   const s = [...stops].sort((a,b) => a.stop - b.stop);
   if (t <= s[0].stop)           return hexToRgb(s[0].color);
@@ -576,14 +576,14 @@ function sampleGradient(t, stops) {
 }
 
 // ── Gradient Stop Helpers ────────────────────────────────────
-function addGradientStop(position) {
+export function addGradientStop(position) {
   const t = Math.max(0, Math.min(1, position));
   const rgb = sampleGradient(t, state.gradientStops);
   state.gradientStops.push({ stop: t, color: rgbToHex(...rgb) });
   state.gradientStops.sort((a,b) => a.stop - b.stop);
 }
 
-function subdivideGradient(n) {
+export function subdivideGradient(n) {
   const sorted = [...state.gradientStops].sort((a,b) => a.stop - b.stop);
   const result = [...sorted];
   for (let i = 0; i < sorted.length-1; i++) {
@@ -597,21 +597,21 @@ function subdivideGradient(n) {
   state.gradientStops = result.sort((a,b) => a.stop - b.stop);
 }
 
-function applyPalette(key) {
+export function applyPalette(key) {
   const p = PALETTES[key];
   if (!p || !p.stops) return;
   state.gradientStops = JSON.parse(JSON.stringify(p.stops));
 }
 
 // ── Image Style Helpers ──────────────────────────────────────
-function getStyleImages() {
+export function getStyleImages() {
   const order = state.imageStyleOrder;
   const imgs  = IMAGE_STYLES[state.imageStyle] || [];
   if (!order || order.length !== imgs.length) return imgs;
   return order.map(i => imgs[i]);
 }
 
-function shuffleStyleImages() {
+export function shuffleStyleImages() {
   const imgs = IMAGE_STYLES[state.imageStyle] || [];
   const idx  = imgs.map((_, i) => i);
   for (let i = idx.length - 1; i > 0; i--) {
@@ -632,7 +632,7 @@ function _hashString(s) {
   return h.toString(36);
 }
 
-function getEnglishSourceHash() {
+export function getEnglishSourceHash() {
   // Concatenate fields with a NUL byte so 'ab|cd' and 'a|bcd' don't collide.
   // String.fromCharCode keeps the separator out of source-code byte form so
   // editors/formatters can't silently mangle it.
@@ -644,7 +644,7 @@ function getEnglishSourceHash() {
   );
 }
 
-function getDisplayText() {
+export function getDisplayText() {
   const lang = state.previewLang || 'en';
   const t = (lang !== 'en' && state.translations) ? state.translations[lang] : null;
   if (!t) {
@@ -665,13 +665,13 @@ function getDisplayText() {
   };
 }
 
-function isTranslationStale(lang) {
+export function isTranslationStale(lang) {
   const t = state.translations && state.translations[lang];
   if (!t) return false;
   return t.sourceHash !== getEnglishSourceHash();
 }
 
-function getLangDir(code) {
+export function getLangDir(code) {
   const lang = LANGUAGES.find(l => l.code === code);
   return lang ? lang.dir : 'ltr';
 }
@@ -679,7 +679,7 @@ function getLangDir(code) {
 // ── Headline Highlight Helpers ───────────────────────────────
 // Both the live DOM headline (gui.js) and the PNG export (sketch.js)
 // match against this same parsed set so the two render paths cannot drift.
-function parseHighlightWords(str) {
+export function parseHighlightWords(str) {
   return new Set(
     (str || '')
       .split(/[\s,]+/)
@@ -689,7 +689,7 @@ function parseHighlightWords(str) {
 }
 
 // Keeps straight + curly apostrophes so "don't" matches either form.
-function normalizeHighlightKey(word) {
+export function normalizeHighlightKey(word) {
   return word.toLowerCase().replace(/[^a-z0-9'‘’-]/g, '');
 }
 

@@ -1,6 +1,34 @@
 // ── gui.js ────────────────────────────────────────────────────
-// Vanilla JS control panel.
-// Depends on: shared.js
+// ES module. Imports state + helpers from shared.js. Reads Tweakpane,
+// JSZip, and html2canvas from globals (the CDN scripts load classically
+// before this module runs).
+
+import {
+  state,
+  PALETTES,
+  BG_GRADIENTS,
+  IMAGE_STYLES,
+  LANGUAGES,
+  TRANSLATION_TARGET_LANGS,
+  TRANSLATION_WORKER_URL,
+  ASPECT_RATIO_DEFAULTS,
+  applyAspectFields,
+  snapshotAspectFields,
+  applyPalette,
+  hexToRgb,
+  getColorLuma,
+  getActiveBgPresets,
+  getCurveValue,
+  getDisplayText,
+  getEnglishSourceHash,
+  getLangDir,
+  getStyleImages,
+  isTranslationStale,
+  parseHighlightWords,
+  normalizeHighlightKey,
+  shuffleStyleImages,
+} from './shared.js';
+import { DEFAULT_PRESETS } from './default-presets.js';
 
 // ── Redraw trigger ────────────────────────────────────────────
 function redraw() {
@@ -2760,7 +2788,7 @@ function syncControlsToState() {
 }
 
 // ── Init ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+function _initGUI() {
   // Apply the correct layout defaults for the starting aspect ratio so
   // the GUI and canvas open with the right values (not the generic fallbacks).
   const initDefaults = ASPECT_RATIO_DEFAULTS[state.aspectRatio];
@@ -2842,4 +2870,10 @@ document.addEventListener('DOMContentLoaded', () => {
     header.addEventListener('pointerup',     () => { dragging = false; });
     header.addEventListener('pointercancel', () => { dragging = false; });
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initGUI);
+} else {
+  _initGUI();
+}

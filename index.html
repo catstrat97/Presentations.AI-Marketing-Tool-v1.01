@@ -46,11 +46,6 @@
     <!-- ── Control Panel ────────────────────────────────────── -->
     <aside id="panel" class="ignore-export">
 
-      <div id="panel-header">
-        <h1>Generative</h1>
-        <h2>Canvas System</h2>
-      </div>
-
       <div id="panel-scroll">
         <!-- Sections injected by gui.js after DOM ready -->
       </div>
@@ -64,31 +59,22 @@
 
   </div>
 
-  <!-- 1. Shared globals: state, getCurveValue, color utils ─── -->
-  <script src="shared.js"></script>
-
-  <!-- 1b. Bundled DEFAULT_PRESETS array (seeded on first load) ── -->
-  <script src="default-presets.js"></script>
-
-  <!-- 2. p5.js library ─────────────────────────────────────── -->
+  <!-- ── Vendor CDN scripts (classic, attach globals) ─────── -->
+  <!-- Must load before our modules so p5 / Tweakpane / JSZip /     -->
+  <!-- html2canvas globals exist when the module code runs.          -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
-
-  <!-- 3. p5 sketch (reads from shared.js globals) ─────────── -->
-  <script src="sketch.js"></script>
-
-  <!-- 3.5 Capture library ──────────────────────────────────── -->
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-
-  <!-- 3.6 JSZip — used by "Export all languages" to bundle PNGs ── -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-  <!-- 4a. Tweakpane (folder/collapse structure) ───────────── -->
   <script src="https://cdn.jsdelivr.net/npm/tweakpane@3.1.10/dist/tweakpane.js"></script>
 
-  <!-- 4b. GUI (reads from shared.js globals, calls _p5Redraw) -->
-  <script src="gui.js"></script>
+  <!-- ── App modules (ES modules, deferred by default) ────── -->
+  <!-- gui.js imports sketch.js (transitively via window hooks) -->
+  <!-- and shared.js. Module load order is resolved by imports. -->
+  <script type="module" src="sketch.js"></script>
+  <script type="module" src="gui.js"></script>
 
-  <!-- 5. Window resize handler ─────────────────────────────── -->
+  <!-- Window resize handler — classic OK; module sets window._p5Resize -->
+  <!-- before any user-driven resize fires. -->
   <script>
     let _rt;
     window.addEventListener('resize', () => {

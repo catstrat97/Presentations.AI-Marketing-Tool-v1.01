@@ -1,5 +1,18 @@
 // ── sketch.js ─────────────────────────────────────────────────
-// Depends on: shared.js
+// ES module. Imports shared state + helpers; reads p5 from the global
+// (p5 is loaded as a classic CDN script before the modules run).
+
+import {
+  state,
+  ASPECT_RATIOS,
+  hexToRgb,
+  sampleGradient,
+  getCurveValue,
+  getDisplayText,
+  getLangDir,
+  parseHighlightWords,
+  normalizeHighlightKey,
+} from './shared.js';
 
 let cw, ch;
 
