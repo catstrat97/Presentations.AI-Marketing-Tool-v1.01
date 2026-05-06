@@ -1012,6 +1012,150 @@ function mkSubLabel(text, mt = 16) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// TRANSLATE SECTION
+// ══════════════════════════════════════════════════════════════
+function buildTranslateSection(ct) {
+  // ── Preview language picker ──────────────────────────────
+  ct.appendChild(mkSubLabel('Preview', 0));
+
+  const previewSel = document.createElement('select');
+  previewSel.className = 'tp-custom-select translate-preview-sel';
+  previewSel.id = 'ctrl-preview-lang';
+  ct.appendChild(previewSel);
+
+  function rebuildPreviewOptions() {
+    const current = state.previewLang || 'en';
+    previewSel.innerHTML = '';
+    LANGUAGES.forEach(l => {
+      const has = l.code === 'en' || (state.translations && state.translations[l.code]);
+      if (!has) return;
+      const opt = document.createElement('option');
+      opt.value = l.code;
+      const stale = isTranslationStale(l.code);
+      opt.textContent = l.label + (stale ? ' (stale)' : '');
+      if (current === l.code) opt.selected = true;
+      previewSel.appendChild(opt);
+    });
+  }
+  rebuildPreviewOptions();
+
+  previewSel.addEventListener('focus', rebuildPreviewOptions);
+  previewSel.addEventListener('change', () => {
+    state.previewLang = previewSel.value;
+    updateOverlays();
+  });
+
+  // ── Target language checkboxes ───────────────────────────
+  ct.appendChild(mkSubLabel('Translate to'));
+
+  const targetsBox = document.createElement('div');
+  targetsBox.className = 'translate-targets';
+  TRANSLATION_TARGET_LANGS.forEach(l => {
+    const row = document.createElement('label');
+    row.className = 'translate-target-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.dataset.lang = l.code;
+    row.appendChild(cb);
+    const text = document.createElement('span');
+    text.textContent = l.label;
+    row.appendChild(text);
+    targetsBox.appendChild(row);
+  });
+  ct.appendChild(targetsBox);
+
+  // ── Translate button + status ────────────────────────────
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn translate-btn';
+  btn.textContent = 'Translate';
+  ct.appendChild(btn);
+
+  const status = document.createElement('div');
+  status.className = 'translate-status';
+  ct.appendChild(status);
+
+  function setStatus(text, isError = false) {
+    status.textContent = text;
+    status.classList.toggle('error', !!isError);
+  }
+
+  if (!TRANSLATION_WORKER_URL) {
+    setStatus('Set TRANSLATION_WORKER_URL in shared.js to enable.');
+  }
+
+  btn.addEventListener('click', async () => {
+    const checkedLangs = Array.from(targetsBox.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(cb => cb.dataset.lang);
+    if (checkedLangs.length === 0) {
+      setStatus('Pick at least one language.', true);
+      return;
+    }
+    if (!TRANSLATION_WORKER_URL) {
+      setStatus('Set TRANSLATION_WORKER_URL in shared.js first.', true);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Translating…';
+    setStatus(`Translating to ${checkedLangs.length} language${checkedLangs.length === 1 ? '' : 's'}…`);
+    try {
+      const stored = await runTranslate(checkedLangs);
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setStatus(`Translated ${stored} at ${time}.`);
+      rebuildPreviewOptions();
+      updateOverlays();
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Translate';
+    }
+  });
+
+  // Expose so randomize / preset-load paths can refresh the dropdown later
+  window._translateRefresh = rebuildPreviewOptions;
+}
+
+async function runTranslate(targetLanguages) {
+  const resp = await fetch(TRANSLATION_WORKER_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      targetLanguages,
+      headlineText:           state.headlineText || '',
+      footerByline:           state.footerByline || '',
+      headlineHighlightWords: state.headlineHighlightWords || '',
+    }),
+  });
+  if (!resp.ok) {
+    let detail = '';
+    try { detail = (await resp.json()).error || ''; } catch { /* ignore */ }
+    throw new Error(`Worker ${resp.status}${detail ? ': ' + detail : ''}`);
+  }
+  const data = await resp.json();
+  if (!data || typeof data.translations !== 'object' || data.translations === null) {
+    throw new Error('Worker returned no translations object');
+  }
+
+  const sourceHash = getEnglishSourceHash();
+  let stored = 0;
+  for (const lang of targetLanguages) {
+    const t = data.translations[lang];
+    if (!t || typeof t !== 'object') continue;
+    state.translations[lang] = {
+      headlineText:           typeof t.headlineText === 'string'           ? t.headlineText           : '',
+      footerByline:           typeof t.footerByline === 'string'           ? t.footerByline           : '',
+      headlineHighlightWords: typeof t.headlineHighlightWords === 'string' ? t.headlineHighlightWords : '',
+      sourceHash,
+    };
+    stored++;
+  }
+  if (stored === 0) throw new Error('No valid translations in response');
+  return stored;
+}
+
+// ══════════════════════════════════════════════════════════════
 // BG PRESET SWATCHES + GRADIENT PRESETS (dynamic)
 // ══════════════════════════════════════════════════════════════
 function buildBgPresetsUI(sec) {
@@ -2318,6 +2462,13 @@ function buildGUI() {
       onChange: updateOverlays }));
     ct.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'', key:'footerFont',
       options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
+  });
+
+  // ── Translate ─────────────────────────────────────────────
+  const fTranslate = registerFolder(pane.addFolder({ title: 'Translate', expanded: false }));
+  into(fTranslate, ct => {
+    ct.classList.add('section-translate');
+    buildTranslateSection(ct);
   });
 
   // ── Accordion: only one folder open at a time ─────────────
