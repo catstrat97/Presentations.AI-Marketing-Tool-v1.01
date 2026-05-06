@@ -18,44 +18,42 @@ const ASPECT_RATIOS = {
 //
 // 1:1 values derived from Figma node 95:50741 (1410×1410 canvas).
 // Conversion: value_in_state = figma_px × (2696 / 1410).
-// Per-aspect-ratio defaults — applied automatically when switching aspect.
-// All values use the 2696px design-unit coordinate system (same as --scale).
-// `headlineFillEnabled` defaults to ON; per-aspect fill paddings tune the
-// fill box height. Y-offset/scale/font-size dialled in per format.
-const ASPECT_RATIO_DEFAULTS = {
+//
+// Adding a knob that's identical across aspects: add it to _BASE alone.
+// Adding a knob that varies: put a sensible value in _BASE if there is one,
+// then list overrides only on aspects that actually differ.
+const _ASPECT_DEFAULTS_BASE = {
+  headlineAlign:        'center',
+  headlineFont:         '400',
+  headlineFillEnabled:  true,
+  bgColor:              '#361E1C',
+  headlineLineHeight:   1.1,   // landscape aspects override to 1.15
+  imageRadius:          12,    // 1:1 and 9:16 override to 18
+};
+
+const _ASPECT_DEFAULTS_OVERRIDES = {
   // ── 1:1 Square ────────────────────────────────────────────
   '1:1': {
     headlineFontSize:        147,
     headlineYPos:            214,
     headlineTracking:        -5.9,
-    headlineLineHeight:      1.1,
-    headlineAlign:           'center',
-    headlineFont:            '400',
     headlinePadding:         338,
-    headlineFillEnabled:     true,
     headlineFillPaddingTop:  150,
     headlineFillPaddingBottom: 140,
     imageScale:              1.46,
     imageYOffset:            604,
     imageRadius:             18,
-    bgColor:                 '#361E1C',
   },
   // ── 4:5 Portrait ──────────────────────────────────────────
   '4:5': {
     headlineFontSize:        127,
     headlineYPos:            206,
     headlineTracking:        -4.8,
-    headlineLineHeight:      1.1,
-    headlineAlign:           'center',
-    headlineFont:            '400',
     headlinePadding:         260,
-    headlineFillEnabled:     true,
     headlineFillPaddingTop:  170,
     headlineFillPaddingBottom: 160,
     imageScale:              1.55,
     imageYOffset:            590,
-    imageRadius:             12,
-    bgColor:                 '#361E1C',
   },
   // ── 16:9 Landscape ────────────────────────────────────────
   '16:9': {
@@ -63,16 +61,11 @@ const ASPECT_RATIO_DEFAULTS = {
     headlineYPos:            120,
     headlineTracking:        -3.2,
     headlineLineHeight:      1.15,
-    headlineAlign:           'center',
-    headlineFont:            '400',
     headlinePadding:         420,
-    headlineFillEnabled:     true,
     headlineFillPaddingTop:  100,
     headlineFillPaddingBottom: 90,
     imageScale:              1.10,
     imageYOffset:            -90,
-    imageRadius:             12,
-    bgColor:                 '#361E1C',
   },
   // ── 1.91:1 (almost identical to 16:9) ─────────────────────
   '1.91:1': {
@@ -80,35 +73,31 @@ const ASPECT_RATIO_DEFAULTS = {
     headlineYPos:            120,
     headlineTracking:        -3.2,
     headlineLineHeight:      1.15,
-    headlineAlign:           'center',
-    headlineFont:            '400',
     headlinePadding:         440,
-    headlineFillEnabled:     true,
     headlineFillPaddingTop:  100,
     headlineFillPaddingBottom: 90,
     imageScale:              1.10,
     imageYOffset:            -90,
-    imageRadius:             12,
-    bgColor:                 '#361E1C',
   },
   // ── 9:16 Story ────────────────────────────────────────────
   '9:16': {
     headlineFontSize:        172,
     headlineYPos:            260,
     headlineTracking:        -6.9,
-    headlineLineHeight:      1.1,
-    headlineAlign:           'center',
-    headlineFont:            '400',
     headlinePadding:         140,
-    headlineFillEnabled:     true,
     headlineFillPaddingTop:  220,
     headlineFillPaddingBottom: 210,
     imageScale:              1.49,
     imageYOffset:            1430,
     imageRadius:             18,
-    bgColor:                 '#361E1C',
   },
 };
+
+const ASPECT_RATIO_DEFAULTS = Object.fromEntries(
+  Object.entries(_ASPECT_DEFAULTS_OVERRIDES).map(
+    ([k, v]) => [k, { ..._ASPECT_DEFAULTS_BASE, ...v }]
+  )
+);
 
 // ── Built-in Palettes ────────────────────────────────────────
 const PALETTES = {
