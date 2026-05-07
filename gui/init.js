@@ -559,7 +559,7 @@ function buildGUI() {
     // ── Fill ──────────────────────────────────────────────
     ct.appendChild(mkSubLabel('Fill'));
     ct.appendChild(mkToggle({ id:'ctrl-hl-fill',     label:'Fill Behind Text', key:'headlineFillEnabled',
-      onChange: () => { state.headlineFillOpacity = 1; updateOverlays(); redraw(); } }));
+      onChange: () => { updateOverlays(); redraw(); } }));
     ct.appendChild(mkColor( { id:'ctrl-hl-fill-col', label:'Fill Colour',      key:'headlineFillColor', onChange: updateOverlays }));
 
     // ── Typography ────────────────────────────────────────

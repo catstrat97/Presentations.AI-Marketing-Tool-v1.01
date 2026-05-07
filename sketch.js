@@ -807,16 +807,13 @@ const sketch = function(p) {
 
     // ── Footer byline ──────────────────────────────────────────
     ctx.save();
-    ctx.font         = `${state.footerFont} ${fontSize}px "Innovator Grotesk", sans-serif`;
+    ctx.font         = `500 ${fontSize}px "Innovator Grotesk", sans-serif`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
     ctx.fillStyle    = textColor;
     ctx.textBaseline = 'middle';
-    ctx.textAlign    = state.footerAlign === 'right'  ? 'right'  :
-                       state.footerAlign === 'center' ? 'center' : 'left';
+    ctx.textAlign    = 'left';
 
-    const textX = state.footerAlign === 'right'  ? rect.x + rect.w - padR :
-                  state.footerAlign === 'center' ? rect.x + rect.w / 2   :
-                  rect.x + padL;
+    const textX = rect.x + padL;
     const display = getDisplayText();
     if (getLangDir(display.lang) === 'rtl' && 'direction' in ctx) ctx.direction = 'rtl';
     ctx.fillText(display.footerByline, textX, rect.y + rect.h / 2);
@@ -852,8 +849,7 @@ const sketch = function(p) {
     const textStartY = textEl ? _xRect(textEl, ab, ES).y : headRect.y;
 
     if (state.headlineFillEnabled) {
-      const [fr, fg, fb] = hexToRgb(state.headlineFillColor || '#000000');
-      ctx.fillStyle = `rgba(${fr},${fg},${fb},${state.headlineFillOpacity})`;
+      ctx.fillStyle = state.headlineFillColor || '#000000';
       ctx.fillRect(headRect.x, headRect.y, headRect.w, headRect.h);
     }
 

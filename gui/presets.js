@@ -33,8 +33,7 @@ function _applyPresetSnap(snap) {
   }
   if (!snap.footerTextBase) {
     const luma = getColorLuma(state.footerTextColor || '#ffffff');
-    state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
-    state.footerTextOpacity = 1.0;
+    state.footerTextBase = luma > 128 ? '#ffffff' : '#050505';
   }
   _applyPresetSlide();
 }

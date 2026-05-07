@@ -44,11 +44,8 @@ export function applyTextAdaptation() {
     el.style.textShadow = 'none';
   });
 
-  // Footer byline
-  const ftBase = state.footerTextBase || '#ffffff';
-  const ftOp   = state.footerTextOpacity ?? 1.0;
-  const [fr, fg, fb] = hexToRgb(ftBase);
-  state.footerTextColor = `rgba(${fr},${fg},${fb},${ftOp})`;
+  // Footer byline — opacity is fixed at 1, so the colour is just the base.
+  state.footerTextColor = state.footerTextBase || '#ffffff';
   const bylineEl = document.getElementById('footer-byline');
   if (bylineEl) {
     bylineEl.style.color      = state.footerTextColor;
@@ -346,9 +343,9 @@ export function updateOverlays() {
   if (overlayFoot && byline) {
     const display = getDisplayText();
     byline.textContent            = display.footerByline;
-    byline.style.textAlign        = state.footerAlign;
+    byline.style.textAlign        = 'left';
     byline.style.letterSpacing    = `calc(${state.footerTracking}px * var(--scale))`;
-    byline.style.fontWeight       = state.footerFont;
+    byline.style.fontWeight       = '500';
     byline.dir                    = getLangDir(display.lang);
     overlayFoot.style.display     = state.showFooter ? 'flex' : 'none';
   }
