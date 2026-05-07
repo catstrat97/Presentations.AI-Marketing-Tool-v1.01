@@ -20,24 +20,32 @@ function _applyPresetSlide() {
   state.imageSrc        = imgs[idx] || '';
 }
 
+// Restore a preset snap into state. Older snaps may predate the
+// headlineTextBase/footerTextBase fields — derive sensible base
+// colours from text-colour luma when missing. Pure state mutation;
+// callers handle UI sync (syncControlsToState / updateOverlays).
+function _applyPresetSnap(snap) {
+  Object.assign(state, snap);
+  if (!snap.headlineTextBase) {
+    const luma = getColorLuma(state.headlineTextColor || '#ffffff');
+    state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
+    state.headlineTextOpacity = 1.0;
+  }
+  if (!snap.footerTextBase) {
+    const luma = getColorLuma(state.footerTextColor || '#ffffff');
+    state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
+    state.footerTextOpacity = 1.0;
+  }
+  _applyPresetSlide();
+}
+
 // Public: apply the first preset for the active aspect (used at boot).
 export function applyDefaultPreset() {
   const all = _loadPresets();
   const ratio = state.aspectRatio;
   const first = all.find(p => (p?.snap?.aspectRatio || '1:1') === ratio);
   if (!first) return false;
-  Object.assign(state, first.snap);
-  if (!first.snap.headlineTextBase) {
-    const luma = getColorLuma(state.headlineTextColor || '#ffffff');
-    state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
-    state.headlineTextOpacity = 1.0;
-  }
-  if (!first.snap.footerTextBase) {
-    const luma = getColorLuma(state.footerTextColor || '#ffffff');
-    state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
-    state.footerTextOpacity = 1.0;
-  }
-  _applyPresetSlide();
+  _applyPresetSnap(first.snap);
   return true;
 }
 
@@ -218,20 +226,7 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
       applyBtn.textContent = preset.name;
       applyBtn.title       = 'Apply preset';
       applyBtn.addEventListener('click', () => {
-        Object.assign(state, preset.snap);
-        if (!preset.snap.headlineTextBase) {
-          const luma = getColorLuma(state.headlineTextColor || '#ffffff');
-          state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
-          state.headlineTextOpacity = 1.0;
-        }
-        if (!preset.snap.footerTextBase) {
-          const luma = getColorLuma(state.footerTextColor || '#ffffff');
-          state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
-          state.footerTextOpacity = 1.0;
-        }
-        // Re-derive the slide image from the saved style+index so the
-        // visual that was active when the preset was saved is restored.
-        _applyPresetSlide();
+        _applyPresetSnap(preset.snap);
         syncControlsToState();
         updateOverlays();
         if (window._p5Resize) window._p5Resize();
