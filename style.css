@@ -2888,27 +2888,29 @@ input[type=color]::-webkit-color-swatch {
      TYPOGRAPHY : alignment, font weight
    ══════════════════════════════════════════════════════════════ */
 
-.tp-custom.section-footer {
+/* Footer block is now nested inside the Headline section. The wrapper
+   keeps the .section-footer class so the ID-scoped rules below still
+   match without duplication. */
+.headline-footer-block {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
-.section-footer .section-label.sub {
-  margin-top: var(--space-4);
-  margin-bottom: var(--space-2);
-  padding-top: var(--space-3);
+/* Group divider that introduces the Footer block within Headline. */
+.section-group-divider {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
   border-top: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
 }
 
-.section-footer .section-label.sub:first-child {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
+.section-footer .section-label.sub:first-of-type {
+  margin-top: var(--space-2);
 }
 
 /* Byline input */

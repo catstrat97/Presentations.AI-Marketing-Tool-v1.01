@@ -571,6 +571,32 @@ function buildGUI() {
     ct.appendChild(mkSubLabel('Position'));
     ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0, max:1500, step:1, key:'headlineYPos',    decimals:0, onChange: updateOverlays }));
     ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0, max:700,  step:1, key:'headlinePadding', decimals:0, onChange: updateOverlays }));
+
+    // ── Footer (merged under Headline so all text props live in one
+    //   place; was previously its own folder). Wrapped in
+    //   .section-footer so the legacy footer-scoped CSS still applies.
+    const ftBlock = document.createElement('div');
+    ftBlock.className = 'section-footer headline-footer-block';
+
+    const ftDivider = document.createElement('div');
+    ftDivider.className = 'section-group-divider';
+    ftDivider.textContent = 'Footer';
+    ftBlock.appendChild(ftDivider);
+
+    ftBlock.appendChild(mkSubLabel('Text', 0));
+    ftBlock.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
+
+    ftBlock.appendChild(mkSubLabel('Colour'));
+    ftBlock.appendChild(mkTextBaseControl('ft'));
+
+    ftBlock.appendChild(mkSubLabel('Typography'));
+    ftBlock.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'', key:'footerAlign',
+      options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
+      onChange: updateOverlays }));
+    ftBlock.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'', key:'footerFont',
+      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
+
+    ct.appendChild(ftBlock);
   });
 
   // ── Slides ────────────────────────────────────────────────
@@ -628,28 +654,6 @@ function buildGUI() {
     // ── Distribution ──────────────────────────────────────
     ct.appendChild(mkSubLabel('Distribution'));
     buildImageDistControls(ct);
-  });
-
-  // ── Footer ────────────────────────────────────────────────
-  const fFooter = registerFolder(pane.addFolder({ title: 'Footer', expanded: false }));
-  into(fFooter, ct => {
-    ct.classList.add('section-footer');
-
-    // ── Text ──────────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Text', 0));
-    ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
-
-    // ── Colour ────────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Colour'));
-    ct.appendChild(mkTextBaseControl('ft'));
-
-    // ── Typography ────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Typography'));
-    ct.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'', key:'footerAlign',
-      options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
-      onChange: updateOverlays }));
-    ct.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'', key:'footerFont',
-      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
   });
 
   // ── Translate ─────────────────────────────────────────────
