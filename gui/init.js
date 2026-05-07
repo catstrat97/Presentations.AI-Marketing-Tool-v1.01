@@ -539,7 +539,7 @@ function buildGUI() {
   // ── Text Content (Headline + Footer) ──────────────────────
   const fHeadline = registerFolder(pane.addFolder({ title: 'Text Content', expanded: false }));
   into(fHeadline, ct => {
-    ct.classList.add('section-headline');
+    ct.classList.add('section-text-content');
 
     // ── Header Text ───────────────────────────────────────
     ct.appendChild(mkSubLabel('Header Text', 0));

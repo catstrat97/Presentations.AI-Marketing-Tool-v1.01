@@ -2562,12 +2562,12 @@ input[type=color]::-webkit-color-swatch {
      POSITION   : y position, L/R padding
    ══════════════════════════════════════════════════════════════ */
 
-.tp-custom.section-headline {
+.tp-custom.section-text-content {
   gap: var(--space-3);
 }
 
 /* Sub-section labels with consistent dividers */
-.section-headline .section-label.sub {
+.section-text-content .section-label.sub {
   margin-top: var(--space-4);
   margin-bottom: var(--space-2);
   padding-top: var(--space-3);
@@ -2581,14 +2581,14 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* First sub-label of the section: no top divider */
-.section-headline .section-label.sub:first-child {
+.section-text-content .section-label.sub:first-child {
   margin-top: 0;
   padding-top: 0;
   border-top: none;
 }
 
 /* Textarea — comfortable height */
-.section-headline #ctrl-hl-text {
+.section-text-content #ctrl-hl-text {
   min-height: 84px;
   padding: var(--space-3);
   border-radius: 8px;
@@ -2597,47 +2597,47 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* Highlight Words input */
-.section-headline #ctrl-hl-words {
+.section-text-content #ctrl-hl-words {
   height: 36px;
   border-radius: 8px;
 }
 
 /* Text Base control (Dark/Light + opacity) inside Colour group */
-.section-headline .text-base-ctrl {
+.section-text-content .text-base-ctrl {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.section-headline .text-base-ctrl .control-row {
+.section-text-content .text-base-ctrl .control-row {
   margin-bottom: 0;
 }
 
-.section-headline .text-base-ctrl>.control-row:first-child {
+.section-text-content .text-base-ctrl>.control-row:first-child {
   display: grid;
   grid-template-columns: 80px 1fr;
   align-items: center;
   gap: var(--space-3);
 }
 
-.section-headline .text-base-ctrl>.control-row:first-child>label {
+.section-text-content .text-base-ctrl>.control-row:first-child>label {
   margin-bottom: 0;
 }
 
-.section-headline .text-base-ctrl #ctrl-hl-text-base {
+.section-text-content .text-base-ctrl #ctrl-hl-text-base {
   width: 100%;
   min-height: 32px;
   border-radius: 8px;
 }
 
 /* Colour rows in Headline */
-.section-headline .color-row {
+.section-text-content .color-row {
   min-height: 40px;
   padding: var(--space-2) var(--space-3);
   border-radius: 8px;
 }
 
-.section-headline .color-row>label {
+.section-text-content .color-row>label {
   margin-bottom: 0;
   font-size: 12px;
   font-weight: 500;
@@ -2645,37 +2645,37 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* Toggle row (Fill Behind Text) — uniform height with neighbors */
-.section-headline .toggle-row {
+.section-text-content .toggle-row {
   margin: 0;
   min-height: 36px;
   padding: var(--space-1) 0;
   align-items: center;
 }
 
-.section-headline .toggle-row label:first-child {
+.section-text-content .toggle-row label:first-child {
   font-size: 12px;
   font-weight: 500;
   color: var(--text);
 }
 
 /* Typography segmented (alignment, font weight) — full width, no label */
-.section-headline #ctrl-hl-align,
-.section-headline #ctrl-hl-font {
+.section-text-content #ctrl-hl-align,
+.section-text-content #ctrl-hl-font {
   width: 100%;
   min-height: 38px;
   border-radius: 8px;
 }
 
-.section-headline .control-row.no-label {
+.section-text-content .control-row.no-label {
   display: block;
 }
 
-.section-headline .control-row.no-label>label {
+.section-text-content .control-row.no-label>label {
   display: none;
 }
 
 /* Sliders — uniform 40px height with consistent rhythm */
-.section-headline .slider-row {
+.section-text-content .slider-row {
   height: 40px;
   margin: 0;
 }
@@ -2883,7 +2883,7 @@ input[type=color]::-webkit-color-swatch {
 /* ══════════════════════════════════════════════════════════════
    FOOTER — controls live inline inside the Text Content (.section-
    headline) folder. Only two ID-scoped rules remain; layout is
-   inherited from the .section-headline .text-base-ctrl rules above.
+   inherited from the .section-text-content .text-base-ctrl rules above.
    ══════════════════════════════════════════════════════════════ */
 
 #ctrl-ft-byline {
@@ -2891,7 +2891,7 @@ input[type=color]::-webkit-color-swatch {
   border-radius: 8px;
 }
 
-.section-headline #ctrl-ft-text-base {
+.section-text-content #ctrl-ft-text-base {
   width: 100%;
   min-height: 32px;
   border-radius: 8px;
