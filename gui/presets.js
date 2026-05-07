@@ -82,14 +82,27 @@ window.addEventListener('keydown', e => {
   if (_onUndoApplied) _onUndoApplied();
 });
 
-// Seed DEFAULT_PRESETS into localStorage on first load. Only runs if
-// the key is absent or empty — never overwrites user presets.
-(function _seedDefaultPresets() {
+// IDs of bundled default presets — always present, never deletable.
+// Users can build on top (save new presets) but cannot remove these.
+const _DEFAULT_IDS = new Set(DEFAULT_PRESETS.map(p => p.id));
+
+// On every load: ensure all bundled defaults exist in localStorage.
+// User-saved presets are preserved. Missing defaults get re-inserted at
+// the position they appear in DEFAULT_PRESETS (top of the list, in order).
+(function _ensureDefaultPresets() {
   try {
-    const existing = JSON.parse(localStorage.getItem(_PRESETS_KEY));
-    if (!existing || existing.length === 0) {
-      localStorage.setItem(_PRESETS_KEY, JSON.stringify(DEFAULT_PRESETS));
-    }
+    let stored;
+    try { stored = JSON.parse(localStorage.getItem(_PRESETS_KEY)) || []; }
+    catch { stored = []; }
+
+    const haveIds = new Set(stored.map(p => p?.id));
+    const missing = DEFAULT_PRESETS.filter(p => !haveIds.has(p.id));
+    if (missing.length === 0) return;
+
+    // Re-add any missing defaults at the top, preserving user entries.
+    const userEntries = stored.filter(p => !_DEFAULT_IDS.has(p?.id));
+    const refreshed   = [...DEFAULT_PRESETS, ...userEntries];
+    localStorage.setItem(_PRESETS_KEY, JSON.stringify(refreshed));
   } catch { /* ignore */ }
 })();
 
@@ -250,21 +263,37 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
         renderList();
       });
 
-      const delBtn = document.createElement('button');
-      delBtn.className   = 'preset-del';
-      delBtn.textContent = '×';
-      delBtn.title       = 'Delete preset';
-      delBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        // Delete by id so we hit the right entry even though the list
-        // we render is filtered.
-        const updated = _loadPresets().filter(p => p.id !== preset.id);
-        _savePresetsStore(updated);
-        renderList();
-      });
-
       chip.appendChild(applyBtn);
-      chip.appendChild(delBtn);
+
+      // Bundled defaults can't be deleted — only user-saved presets.
+      if (!_DEFAULT_IDS.has(preset.id)) {
+        const delBtn = document.createElement('button');
+        delBtn.className   = 'preset-del';
+        delBtn.textContent = '×';
+        delBtn.title       = 'Delete preset';
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          const updated = _loadPresets().filter(p => p.id !== preset.id && !_DEFAULT_IDS.has(p.id) || _DEFAULT_IDS.has(p.id));
+          // Equivalent: drop only this id, never any default.
+          _savePresetsStore(_loadPresets().filter(p => p.id !== preset.id));
+          renderList();
+        });
+        chip.appendChild(delBtn);
+      } else {
+        // Optional visual cue: subtle "default" badge in place of the
+        // delete control so the chip feels balanced and the user knows
+        // this preset is locked.
+        const badge = document.createElement('span');
+        badge.className = 'preset-default-badge';
+        badge.title = 'Built-in preset (cannot be deleted)';
+        badge.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="7" width="10" height="7" rx="1.5"/>
+            <path d="M5 7V5a3 3 0 0 1 6 0v2"/>
+          </svg>`;
+        chip.appendChild(badge);
+      }
+
       listEl.appendChild(chip);
     });
   }
