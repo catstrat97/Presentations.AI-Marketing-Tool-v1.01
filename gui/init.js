@@ -349,7 +349,7 @@ function buildGUI() {
   // ── Composition ──────────────────────────────────────────
   const fBackground = registerFolder(pane.addFolder({ title: 'Background', expanded: false }));
   into(fBackground, ct => {
-    ct.classList.add('section-composition');
+    ct.classList.add('section-background');
 
     const cards    = document.createElement('div'); cards.className = 'comp-cards';
     const cardRect = document.createElement('div');

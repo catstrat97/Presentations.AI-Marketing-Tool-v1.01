@@ -2338,55 +2338,55 @@ input[type=color]::-webkit-color-swatch {
      [Blur slider]
    ══════════════════════════════════════════════════════════════ */
 
-.tp-custom.section-composition {
+.tp-custom.section-background {
   gap: var(--space-3);
 }
 
 /* Comp cards row — even 3-col grid, consistent height */
-.section-composition .comp-cards {
+.section-background .comp-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-2);
   margin: 0 0 var(--space-3);
 }
 
-.section-composition .comp-card {
+.section-background .comp-card {
   padding: var(--space-3) var(--space-1);
   border-radius: 8px;
   gap: var(--space-2);
 }
 
-.section-composition .comp-card svg {
+.section-background .comp-card svg {
   width: 28px;
   height: 28px;
 }
 
-.section-composition .comp-card span {
+.section-background .comp-card span {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0;
 }
 
 /* Type-group inner spacing */
-.section-composition .ctrl-group {
+.section-background .ctrl-group {
   display: none;
   flex-direction: column;
   gap: var(--space-3);
   margin: 0;
 }
 
-.section-composition .ctrl-group.active {
+.section-background .ctrl-group.active {
   display: flex;
 }
 
 /* Anchor grid centered */
-.section-composition .anchor-grid {
+.section-background .anchor-grid {
   width: 96px;
   border-radius: 8px;
 }
 
 /* Sub-section labels (Text-Aware Positioning, Fine Tune, Curve Distribution) */
-.section-composition .section-label.sub {
+.section-background .section-label.sub {
   margin-top: var(--space-4);
   margin-bottom: var(--space-1);
   padding-top: var(--space-3);
@@ -2400,46 +2400,46 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* First sub-label of a group has no top divider */
-.section-composition .ctrl-group .section-label.sub:first-of-type {
+.section-background .ctrl-group .section-label.sub:first-of-type {
   border-top: none;
   padding-top: 0;
   margin-top: 0;
 }
 
 /* Curve grid (4-col tile picker) — clean even cells */
-.section-composition #ctrl-curve.segmented.grid {
+.section-background #ctrl-curve.segmented.grid {
   gap: var(--space-1);
 }
 
-.section-composition #ctrl-curve .seg-btn {
+.section-background #ctrl-curve .seg-btn {
   aspect-ratio: 1;
   padding: 0;
   border-radius: 8px;
 }
 
-.section-composition #ctrl-curve .seg-btn svg {
+.section-background #ctrl-curve .seg-btn svg {
   width: 70%;
   height: 70%;
 }
 
 /* Curve controls wrap — same flex/gap rhythm as type-groups */
-.section-composition #curve-controls-wrap {
+.section-background #curve-controls-wrap {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   margin: 0;
 }
 
-.section-composition #curve-controls-wrap[style*="display: none"] {
+.section-background #curve-controls-wrap[style*="display: none"] {
   display: none !important;
 }
 
 /* Curve preview canvas — clean, full-width, no label */
-.section-composition .curve-preview-wrap {
+.section-background .curve-preview-wrap {
   margin: 0;
 }
 
-.section-composition #curve-preview {
+.section-background #curve-preview {
   width: 100%;
   height: 56px;
   border-radius: 8px;
@@ -2449,7 +2449,7 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* New Seed button — same height as other action buttons */
-.section-composition #noise-reseed-row .ctrl-btn {
+.section-background #noise-reseed-row .ctrl-btn {
   height: 36px;
   border-radius: 8px;
   font-size: 12px;
@@ -2457,13 +2457,13 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* Image preset picker row — label + picker side by side */
-.section-composition .img-preset-picker {
+.section-background .img-preset-picker {
   margin: 0;
 }
 
 /* Hidden conditional rows — collapse fully (no parent flex gap) */
-.section-composition .ctrl-group [style*="display: none"],
-.section-composition #curve-controls-wrap [style*="display: none"] {
+.section-background .ctrl-group [style*="display: none"],
+.section-background #curve-controls-wrap [style*="display: none"] {
   margin: 0 !important;
 }
 
@@ -2540,14 +2540,14 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* Image group preset picker — clean spacing */
-.section-composition #group-img-comp .img-preset-picker {
+.section-background #group-img-comp .img-preset-picker {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
 
-.section-composition #group-img-comp .img-preset-btn {
+.section-background #group-img-comp .img-preset-btn {
   aspect-ratio: 16 / 9;
   border-radius: 8px;
 }
