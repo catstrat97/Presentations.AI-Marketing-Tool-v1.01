@@ -111,6 +111,12 @@ body {
   position: absolute;
 }
 
+/* Stacking order inside #overlays:
+   slides (image) sit BEHIND the headline + fill-box and the footer. */
+#overlay-image     { z-index: 1; }
+#overlay-headline  { z-index: 2; }
+#overlay-footer    { z-index: 3; }
+
 /* Headline Overlay */
 #overlay-headline {
   width: 100%;
@@ -2092,6 +2098,126 @@ input[type=color]::-webkit-color-swatch {
        Color picker / Gradient presets
        Swatches grid
    ══════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════
+   ASSET SIZE — scoped spacing
+   Order:
+     [Aspect Ratio segmented]
+     PRESETS sub-label
+     [filtered preset list]
+     [Save Preset] [Shuffle]
+   ══════════════════════════════════════════════════════════════ */
+
+.tp-custom.section-asset-size {
+  gap: var(--space-3);
+}
+
+/* Aspect Ratio segmented — full-width tier-1 control */
+.section-asset-size #ctrl-aspect {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 8px;
+}
+
+/* Sub-section label uses the same divider treatment as elsewhere */
+.section-asset-size .section-label.sub {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+/* Inner wrapper holding the list + action row */
+.section-asset-size .section-presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Preset list uses the GUI's spacing tokens & 8px radius for chips */
+.section-asset-size .preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.section-asset-size .preset-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.section-asset-size .preset-chip:hover {
+  border-color: var(--text-dim);
+  background: var(--hover-bg);
+}
+
+.section-asset-size .preset-name {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  height: 100%;
+  letter-spacing: 0;
+}
+
+.section-asset-size .preset-del {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.section-asset-size .preset-del:hover {
+  background: rgba(239,68,68,0.12);
+  color: #ef4444;
+}
+
+.section-asset-size .preset-empty {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: var(--space-3);
+  text-align: center;
+  background: var(--input-bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin: 0;
+}
+
+/* Action row: Save Preset + Shuffle, even 2-col split */
+.section-asset-size .preset-action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin: 0;
+}
 
 .tp-custom.section-color-theme {
   gap: var(--space-3);

@@ -49,7 +49,7 @@ import {
   buildImagePresetControls,
   buildImageDistControls,
 } from './sections.js';
-import { buildPresetsContent } from './presets.js';
+import { buildPresetsContent, applyDefaultPreset } from './presets.js';
 import { buildTranslateSection } from './translate.js';
 import {
   randomize,
@@ -83,6 +83,16 @@ function _buildBgGradPresets(container) {
       state.bgGradientStops  = JSON.parse(JSON.stringify(preset.stops));
       state.bgGradientDir    = preset.dir || 'vertical';
       _syncBgGradBtnsInner(gradRow);
+      // Reflect "Solid → Gradient" in the BG Type segmented + group visibility
+      const bgModeSeg = document.getElementById('ctrl-bg-mode');
+      if (bgModeSeg) {
+        bgModeSeg.querySelectorAll('.seg-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.value === 'gradient'));
+      }
+      const sg = document.getElementById('bg-solid-group');
+      const gg = document.getElementById('bg-grad-group');
+      if (sg) sg.style.display = 'none';
+      if (gg) gg.style.display = '';
       onBgChanged();
       redraw();
     });
@@ -139,16 +149,17 @@ function buildGUI() {
   const allFolders = [];
   function registerFolder(f) { allFolders.push(f); return f; }
 
-  // ── Presets (now a collapsible folder) ────────────────────
-  const fPresets = registerFolder(pane.addFolder({ title: 'Presets', expanded: false }));
-  into(fPresets, ct => {
-    ct.classList.add('section-presets');
-    buildPresetsContent(ct, { syncControlsToState, updateOverlays });
-  });
+  // ── Asset Size (Canvas + Presets, merged) ─────────────────
+  // Order inside the folder:
+  //   1. Aspect Ratio bar  (existing styling, unchanged behaviour)
+  //   2. Preset list        (filtered to current aspect ratio)
+  //   3. Save Preset row    (saves into the active aspect's bucket)
+  let _refreshPresetList = null;
+  const fAssetSize = registerFolder(pane.addFolder({ title: 'Asset Size', expanded: false }));
+  into(fAssetSize, ct => {
+    ct.classList.add('section-asset-size');
 
-  // ── Canvas ────────────────────────────────────────────────
-  const fCanvas = registerFolder(pane.addFolder({ title: 'Canvas', expanded: false }));
-  into(fCanvas, ct => {
+    // 1. Aspect Ratio bar
     ct.appendChild(mkSegmented({
       id: 'ctrl-aspect', label: 'Aspect Ratio', key: 'aspectRatio',
       options: [
@@ -159,14 +170,9 @@ function buildGUI() {
         ['1.91:1', ICONS.asp191x1, '1.91:1 — Wide'],
       ],
       onChange: (v, prev) => {
-        // Save the leaving aspect's current values so they're restored
-        // verbatim if the user switches back. (Skip when prev === v —
-        // happens on the very first click of the active button.)
         if (prev && prev !== v) {
           state.aspectOverrides[prev] = snapshotAspectFields();
         }
-        // Prefer the user's stored override for the new aspect; fall back
-        // to fresh defaults the first time they visit it.
         const override = state.aspectOverrides[v];
         applyAspectFields(override || ASPECT_RATIO_DEFAULTS[v]);
 
@@ -174,8 +180,18 @@ function buildGUI() {
         syncControlsToState();
         updateOverlays();
         if (window._p5Resize) window._p5Resize();
+        // Refresh the filtered preset list so only this aspect's
+        // entries are visible.
+        if (_refreshPresetList) _refreshPresetList();
       },
     }));
+
+    // 2 + 3. Preset list and save row (handled by buildPresetsContent)
+    ct.appendChild(mkSubLabel('Presets'));
+    const presetsWrap = document.createElement('div');
+    presetsWrap.className = 'section-presets';
+    ct.appendChild(presetsWrap);
+    _refreshPresetList = buildPresetsContent(presetsWrap, { syncControlsToState, updateOverlays });
   });
 
   // ── Color & Theme ─────────────────────────────────────────
@@ -224,6 +240,20 @@ function buildGUI() {
           : (val === 'dark' ? 'marketingCool' : 'arctic');
         if (PALETTES[themePalKey]) selectPalette(themePalKey);
         applyPalette(state.palette);
+        // Swap the active BG GRADIENT to its same-theme counterpart for
+        // the new mode (warm-dark → warm-light, cool-dark → cool-light).
+        if (state.bgGradientMode && BG_GRADIENTS[themePalKey]) {
+          const def = BG_GRADIENTS[themePalKey];
+          state.bgGradientPreset = themePalKey;
+          state.bgGradientStops  = JSON.parse(JSON.stringify(def.stops));
+          state.bgGradientDir    = def.dir || 'vertical';
+          // Reflect new active button
+          const gradRow = document.getElementById('bg-grad-container');
+          if (gradRow) {
+            gradRow.querySelectorAll('.bg-grad-btn').forEach(b =>
+              b.classList.toggle('active', b.dataset.key === themePalKey));
+          }
+        }
         const newPresets = getActiveBgPresets();
         if (newPresets.length) {
           state.bgColor = newPresets[0].color;
@@ -544,8 +574,8 @@ function buildGUI() {
     ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0, max:700,  step:1, key:'headlinePadding', decimals:0, onChange: updateOverlays }));
   });
 
-  // ── Image Placeholder ─────────────────────────────────────
-  const fImage = registerFolder(pane.addFolder({ title: 'Image Placeholder', expanded: false }));
+  // ── Slides ────────────────────────────────────────────────
+  const fImage = registerFolder(pane.addFolder({ title: 'Slides', expanded: false }));
   into(fImage, ct => {
     ct.classList.add('section-image');
 
@@ -651,6 +681,14 @@ function _initGUI() {
   if (initDefaults) Object.assign(state, initDefaults);
 
   buildGUI();
+
+  // ── Boot with the first preset for the active aspect ──────
+  // Falls back to the per-aspect defaults already applied above if
+  // localStorage is empty for this ratio.
+  if (applyDefaultPreset()) {
+    syncControlsToState();
+  }
+
   updateAspectLabel(state.aspectRatio);
   renderGradientBar();
   renderStopList();

@@ -57,6 +57,11 @@ export function applyTextAdaptation() {
 
 // Derives and sets text base colour automatically from the current BG state.
 // Solid BG: luminance threshold. Gradient BG: white by default, dark when flipped.
+//
+// When the headline fill is enabled, the visible backdrop for the text is
+// the fill rectangle — not the canvas BG — so changes to the canvas BG
+// must NOT flip the headline text colour. Footer is unaffected by fill,
+// so it still adapts to the canvas BG.
 export function autoAssignTextColor() {
   let base;
   if (state.bgGradientMode) {
@@ -64,8 +69,10 @@ export function autoAssignTextColor() {
   } else {
     base = getColorLuma(state.bgColor) > 140 ? '#050505' : '#ffffff';
   }
-  state.headlineTextBase = base;
-  state.footerTextBase   = base;
+  if (!state.headlineFillEnabled) {
+    state.headlineTextBase = base;
+  }
+  state.footerTextBase = base;
   applyTextAdaptation();
   syncTextBaseUI();
 }
@@ -125,52 +132,46 @@ export function rebuildBgSwatches() {
   });
 }
 
-// Build / rebuild the image content inside #overlay-image
+// Build / rebuild the image content inside #overlay-image.
+// Always-on distribution path: count=1 renders a single slide; count>1
+// distributes per state.imageDistMode ('horizontal' | 'vertical' | 'point').
 export function updateImageDistribution() {
   const overlayImg = document.getElementById('overlay-image');
   if (!overlayImg) return;
 
-  // Base styles always needed
   overlayImg.style.display = state.showImage ? 'flex' : 'none';
 
-  if (!state.imageMulti) {
-    // ── Single mode ───────────────────────────────────────────
-    // Restore original CSS-driven layout (single instance)
-    overlayImg.innerHTML = '';
-    overlayImg.style.position        = 'absolute';
-    overlayImg.style.left            = '50%';
-    overlayImg.style.overflow        = 'hidden';
-    overlayImg.style.background      = '#171717';
-    overlayImg.style.flexDirection   = 'row';
-    overlayImg.style.gap             = '0';
-    overlayImg.style.boxShadow       = '';
-    overlayImg.style.transform       = `translateX(-50%) translateY(calc(${state.imageYOffset}px * var(--scale))) scale(${state.imageScale})`;
+  const count = Math.max(1, Math.floor(state.imageMultiCount));
+  const mode  = state.imageDistMode;
+  const sx    = state.imageMultiSpacing  || 0;
+  const sy    = state.imageMultiStaggerY || 0;
 
-    // Re-apply stroke from state
-    const op = state.imageStrokeOp;
-    let strokeColor = `rgba(104,58,39,${op})`;
-    if (state.imageStrokeStyle === 'frosty') {
-      strokeColor = `rgba(220,235,255,${op})`;
-      overlayImg.style.backdropFilter = op > 0 ? 'blur(4px)' : 'none';
-    } else {
-      overlayImg.style.backdropFilter = 'none';
+  // Build the slide order for `count` slots:
+  //   • If the user has Shuffled, honour the shuffled order verbatim.
+  //   • Otherwise centre the SELECTED slide (state.imageStyleIndex) at
+  //     the middle slot. New slides added by bumping count fan out
+  //     symmetrically around that anchor. Clicking a different gallery
+  //     card simply re-centres around the new selection.
+  const baseImgs   = IMAGE_STYLES[state.imageStyle] || [];
+  const isShuffled = !!(state.imageStyleOrder && state.imageStyleOrder.length === baseImgs.length);
+  let imgs;
+  if (isShuffled || baseImgs.length === 0) {
+    imgs = getStyleImages();
+  } else {
+    const n      = baseImgs.length;
+    const center = Math.max(0, Math.min(n - 1, state.imageStyleIndex || 0));
+    const mid    = Math.floor((count - 1) / 2);
+    imgs = [];
+    for (let p = 0; p < count; p++) {
+      const offset = p - mid;
+      const idx    = ((center + offset) % n + n) % n;
+      imgs.push(baseImgs[idx]);
     }
-    overlayImg.style.borderColor  = strokeColor;
-    overlayImg.style.borderStyle  = 'solid';
-    overlayImg.style.borderWidth  = `calc(${state.imageStrokeWeight}px * var(--scale))`;
-    overlayImg.style.borderRadius = `calc(${Math.min(40,Math.max(0,state.imageRadius))}px * var(--scale))`;
-
-    // Rebuild inner
-    overlayImg.appendChild(buildInnerPlaceholder(state.imageSrc));
-    return;
   }
 
-  // ── Multi mode ────────────────────────────────────────────
-  const count = Math.max(1, Math.floor(state.imageMultiCount));
-  const imgs  = getStyleImages();
-  const mode  = state.imageDistMode;
-
-  overlayImg.innerHTML     = '';
+  // The outer wrapper is just a positioning shell — each .img-instance
+  // built by buildInnerPlaceholder carries its own border / shadow / fill.
+  overlayImg.innerHTML          = '';
   overlayImg.style.overflow     = 'visible';
   overlayImg.style.background   = 'transparent';
   overlayImg.style.borderColor  = 'transparent';
@@ -182,23 +183,40 @@ export function updateImageDistribution() {
 
   if (mode === 'horizontal') {
     overlayImg.style.flexDirection   = 'row';
-    overlayImg.style.gap             = `calc(${state.imageMultiSpacing}px * var(--scale))`;
+    overlayImg.style.gap             = `calc(${sx}px * var(--scale))`;
     overlayImg.style.alignItems      = 'center';
     overlayImg.style.justifyContent  = 'center';
+    const yMid = (count - 1) / 2;
     for (let i = 0; i < count; i++) {
       const node = buildInnerPlaceholder(imgs[i % imgs.length] || '');
       node.style.flexShrink = '0';
+      const yOff = (i - yMid) * sy;
+      if (yOff) node.style.transform = `translateY(calc(${yOff}px * var(--scale)))`;
+      overlayImg.appendChild(node);
+    }
+  } else if (mode === 'vertical') {
+    overlayImg.style.flexDirection   = 'column';
+    overlayImg.style.gap             = `calc(${Math.abs(sy)}px * var(--scale))`;
+    overlayImg.style.alignItems      = 'center';
+    overlayImg.style.justifyContent  = 'center';
+    const xMid = (count - 1) / 2;
+    for (let i = 0; i < count; i++) {
+      const node = buildInnerPlaceholder(imgs[i % imgs.length] || '');
+      node.style.flexShrink = '0';
+      const xOff = (i - xMid) * sx;
+      if (xOff) node.style.transform = `translateX(calc(${xOff}px * var(--scale)))`;
       overlayImg.appendChild(node);
     }
   } else {
-    // Point / stagger
+    // Point / stagger — overlapping cascade
     overlayImg.style.flexDirection = 'row';
     overlayImg.style.gap           = '0';
     for (let i = 0; i < count; i++) {
-      const node   = buildInnerPlaceholder(imgs[i % imgs.length] || '');
-      const offset = i * state.imageMultiSpacing;
+      const node = buildInnerPlaceholder(imgs[i % imgs.length] || '');
+      const xOff = i * sx;
+      const yOff = i * sy;
       node.style.position  = 'absolute';
-      node.style.transform = `translate(calc(${offset}px * var(--scale)), calc(${offset}px * var(--scale)))`;
+      node.style.transform = `translate(calc(${xOff}px * var(--scale)), calc(${yOff}px * var(--scale)))`;
       node.style.zIndex    = String(count - i);
       overlayImg.appendChild(node);
     }
@@ -370,18 +388,18 @@ export function syncTheme() {
       b.classList.toggle('active', b.dataset.mode === (state.colorMode || 'dark')));
   }
 
-  // Show only BG gradient presets that match the active theme + color mode
+  // Show every BG gradient preset for the active theme — both Dark and
+  // Light variants are always available regardless of the colour-mode
+  // toggle (which controls the SOLID swatch palette).
   const gradRow = document.getElementById('bg-grad-container');
   if (gradRow) {
-    const activeMode = state.colorMode || 'dark';
     gradRow.querySelectorAll('.bg-grad-btn').forEach(btn => {
       const key = btn.dataset.key;
       if (key === 'none') return; // always visible
       const def = BG_GRADIENTS[key];
       if (!def) { btn.style.display = ''; return; }
       const themeOk = !def.theme || def.theme === state.theme;
-      const modeOk  = !def.mode  || def.mode  === activeMode;
-      btn.style.display = (themeOk && modeOk) ? '' : 'none';
+      btn.style.display = themeOk ? '' : 'none';
     });
   }
 

@@ -304,34 +304,16 @@ export const BG_PALETTE_MAP = {
 };
 
 // ── Image Presets Registry ────────────────────────────────────
+// Files in each Style folder are named 1.png \u2026 N.png in display order.
+const _styleImgs = (n, count = 5) =>
+  Array.from({ length: count }, (_, i) => `Image Presets/Style ${n}/${i + 1}.png`);
+
 export const IMAGE_STYLES = {
-  style1: [
-    'Image Presets/Style 1/Frame 2147229599.png',
-    'Image Presets/Style 1/Frame 2147229600.png',
-    'Image Presets/Style 1/Granola Series A Pitch Deck \u2014 Risk \u2014 Data Privacy Framework.png',
-    'Image Presets/Style 1/Marriott Annual Board Review \u2014 Cover \u2014 Image BG Centered Logos.png',
-    'Image Presets/Style 1/Solar Ops \u2014 Competitive Landscape \u2014 2x2 Quadrant.png',
-  ],
-  style2: [
-    'Image Presets/Style 2/Ogilvy Capabilities Deck \u2014 Cover \u2014 Dark Image BG.png',
-  ],
-  style3: [
-    'Image Presets/Style 3/Granola Series A Pitch Deck \u2014 Financial \u2014 ARR Growth.png',
-  ],
-  style4: [
-    'Image Presets/Style 4/Frame 2147229599.png',
-    'Image Presets/Style 4/Frame 2147229600.png',
-    'Image Presets/Style 4/Granola Series A Pitch Deck \u2014 Chart \u2014 User Growth.png',
-    'Image Presets/Style 4/Granola Series A Pitch Deck \u2014 Risk \u2014 Data Privacy Framework.png',
-    'Image Presets/Style 4/Marriott Annual Board Review \u2014 Cover \u2014 Image BG Centered Logos.png',
-  ],
-  style5: [
-    'Image Presets/Style 5/Marriott Annual Board Review \u2014 Goals \u2014 Strategic Priorities.png',
-    'Image Presets/Style 5/Martin Casado Conference Keynote \u2014 Cover \u2014 Image Top Title Below.png',
-    'Image Presets/Style 5/Rippling Sales Deck \u2014 Risk \u2014 Compliance Gap Analysis.png',
-    'Image Presets/Style 5/Rippling Sales Deck \u2014 Timeline \u2014 Horizontal 3-Node.png',
-    'Image Presets/Style 5/Shopify All Hands Meeting \u2014 DataTable \u2014 Product Launches.png',
-  ],
+  style1: _styleImgs(1),
+  style2: _styleImgs(2),
+  style3: _styleImgs(3),
+  style4: _styleImgs(4),
+  style5: _styleImgs(5),
 };
 
 // ── Centralized State ────────────────────────────────────────
@@ -434,11 +416,12 @@ export const state = {
   imageStrokeOp:   1.0,
   imageStrokeWeight: 20,
 
-  // Image Distribution
-  imageMulti:       false,
-  imageDistMode:    'horizontal',
-  imageMultiCount:  3,
-  imageMultiSpacing: 40,
+  // Image Distribution — always-on; count=1 ≡ single slide.
+  imageMulti:        true,        // legacy flag, retained for preset back-compat
+  imageDistMode:     'point',     // 'horizontal' | 'vertical' | 'point'
+  imageMultiCount:   1,
+  imageMultiSpacing: 40,           // X stagger / row gap
+  imageMultiStaggerY: 0,           // Y stagger / column gap
 
   // Image Presets
   imageStyle:       'style1',

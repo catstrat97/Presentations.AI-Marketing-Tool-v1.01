@@ -21,6 +21,7 @@ import {
   mkToggle,
   mkSlider,
   mkSubLabel,
+  _setSliderFill,
   ICONS,
 } from './controls.js';
 import {
@@ -220,6 +221,10 @@ export function buildImagePresetControls(sec) {
   gallery.id = 'ctrl-img-idx';
   sec.appendChild(gallery);
 
+  // Expose a rebuild hook so syncControlsToState can refresh the
+  // gallery + tabs after a preset is applied.
+  gallery._rebuild = rebuildGallery;
+
   function rebuildGallery() {
     gallery.innerHTML = '';
     const imgs = IMAGE_STYLES[state.imageStyle] || [];
@@ -241,6 +246,16 @@ export function buildImagePresetControls(sec) {
       card.appendChild(im);
       card.addEventListener('click', () => {
         state.imageStyleIndex = i;
+        // In point/cascade mode, clicking a different slide reshuffles
+        // the surrounding cascade for a fresh composition. Other modes
+        // keep the centred-around-selection layout (no shuffle).
+        if (state.imageDistMode === 'point' && state.imageMultiCount > 1) {
+          shuffleStyleImages();
+        } else {
+          // Clearing the shuffled order lets the centred-distribution
+          // logic in updateImageDistribution take over again.
+          state.imageStyleOrder = null;
+        }
         applySelectedImage();
         gallery.querySelectorAll('.img-gallery-card').forEach(b => b.classList.toggle('active', parseInt(b.dataset.value, 10) === i));
         updateOverlays();
@@ -294,32 +309,96 @@ export function applySelectedImage() {
   if (img) state.imageSrc = img;
 }
 
+// Per-mode slider configuration for the two stagger/offset controls.
+// Each entry maps a state field → { label, min, max, step } for that mode.
+const _DIST_SLIDER_CFG = {
+  horizontal: {
+    imageMultiSpacing:  { label: 'Spacing', min: 0,    max: 200, step: 20  },
+    imageMultiStaggerY: { label: 'Offset',  min: -500, max: 500, step: 100 },
+  },
+  vertical: {
+    // In vertical mode the meanings swap: Y becomes spacing, X becomes offset.
+    imageMultiSpacing:  { label: 'Offset',  min: -500, max: 500, step: 100 },
+    imageMultiStaggerY: { label: 'Spacing', min: 0,    max: 200, step: 20  },
+  },
+  point: {
+    // Cascade: each instance shifts by (Side, Drop). Stepped values keep the
+    // composition feeling intentional rather than fiddly.
+    imageMultiSpacing:  { label: 'Side', min: -200, max: 200, step: 25 },
+    imageMultiStaggerY: { label: 'Drop', min: -200, max: 200, step: 25 },
+  },
+};
+
+// Re-label and re-range the two stagger sliders to match the active mode.
+function _refreshDistStaggerControls() {
+  const cfg = _DIST_SLIDER_CFG[state.imageDistMode] || _DIST_SLIDER_CFG.point;
+  [
+    ['ctrl-img-multi-spacing',   'imageMultiSpacing'],
+    ['ctrl-img-multi-stagger-y', 'imageMultiStaggerY'],
+  ].forEach(([id, key]) => {
+    const slider = document.getElementById(id);
+    if (!slider) return;
+    const { label, min, max, step } = cfg[key];
+    slider.min  = String(min);
+    slider.max  = String(max);
+    slider.step = String(step);
+    // Snap value to the new range/step so the dot doesn't hang off the bar
+    let v = state[key];
+    v = Math.max(min, Math.min(max, v));
+    v = Math.round(v / step) * step;
+    state[key] = v;
+    slider.value = v;
+    // Update visible label + numeric readout
+    const row = slider.closest('.slider-row');
+    if (row) {
+      const lbl = row.querySelector('.ctrl-label');
+      if (lbl) lbl.textContent = label;
+      const valEl = row.querySelector('.val');
+      if (valEl) valEl.textContent = String(v);
+    }
+    _setSliderFill(slider);
+  });
+}
+
 export function buildImageDistControls(sec) {
-  sec.appendChild(mkToggle({
-    id: 'ctrl-img-multi', label: 'Multiple Instances', key: 'imageMulti',
-    onChange: v => {
-      const grp = document.getElementById('img-multi-group');
-      if (grp) grp.style.display = v ? 'block' : 'none';
-      updateOverlays();
-    },
+  // Always-on distribution. Slide Count locked to odd numbers (1,3,5,7,9).
+  sec.appendChild(mkSlider({ id:'ctrl-img-count', label:'Slide Count', min:1, max:9, step:2, key:'imageMultiCount', decimals:0, onChange: () => updateOverlays() }));
+
+  sec.appendChild(mkSegmented({
+    id:'ctrl-img-dist-mode', label:'', key:'imageDistMode',
+    options: [
+      ['horizontal', ICONS.distHoriz,    'Horizontal — row of instances'],
+      ['vertical',   ICONS.distVertical, 'Vertical — column of instances'],
+      ['point',      ICONS.distStagger,  'Point / Stagger — overlapping'],
+    ],
+    onChange: () => { _refreshDistStaggerControls(); updateOverlays(); },
   }));
 
-  const multiGroup = document.createElement('div'); multiGroup.id = 'img-multi-group';
-  multiGroup.style.display = state.imageMulti ? 'block' : 'none';
-
-  multiGroup.appendChild(mkSlider({ id:'ctrl-img-count', label:'Instance Count', min:1, max:10, step:1, key:'imageMultiCount', decimals:0, onChange: () => updateOverlays() }));
-
-  multiGroup.appendChild(mkSegmented({
-    id:'ctrl-img-dist-mode', label:'Distribution Mode', key:'imageDistMode',
-    options: [
-      ['horizontal', ICONS.distHoriz,   'Horizontal — row of instances'],
-      ['point',      ICONS.distStagger, 'Point / Stagger — overlapping'],
-    ],
+  // Initial config uses the current mode; gets re-applied on every mode change.
+  const initCfg = _DIST_SLIDER_CFG[state.imageDistMode] || _DIST_SLIDER_CFG.point;
+  sec.appendChild(mkSlider({
+    id: 'ctrl-img-multi-spacing',
+    label: initCfg.imageMultiSpacing.label,
+    min:   initCfg.imageMultiSpacing.min,
+    max:   initCfg.imageMultiSpacing.max,
+    step:  initCfg.imageMultiSpacing.step,
+    key:   'imageMultiSpacing',
+    decimals: 0,
+    onChange: () => updateOverlays(),
+  }));
+  sec.appendChild(mkSlider({
+    id: 'ctrl-img-multi-stagger-y',
+    label: initCfg.imageMultiStaggerY.label,
+    min:   initCfg.imageMultiStaggerY.min,
+    max:   initCfg.imageMultiStaggerY.max,
+    step:  initCfg.imageMultiStaggerY.step,
+    key:   'imageMultiStaggerY',
+    decimals: 0,
     onChange: () => updateOverlays(),
   }));
 
-  multiGroup.appendChild(mkSlider({ id:'ctrl-img-multi-spacing', label:'Spacing / Stagger', min:0, max:200, step:4, key:'imageMultiSpacing', decimals:0, onChange: () => updateOverlays() }));
-  sec.appendChild(multiGroup);
+  // Snap once on first build so out-of-range values from old presets settle.
+  requestAnimationFrame(_refreshDistStaggerControls);
 }
 
 // The legacy standalone Color & Theme section that used `mkSection`

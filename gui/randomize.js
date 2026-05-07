@@ -93,6 +93,7 @@ export function syncControlsToState() {
     ['ctrl-img-rad',           'imageRadius',         0],
     ['ctrl-img-count',         'imageMultiCount',     0],
     ['ctrl-img-multi-spacing', 'imageMultiSpacing',   0],
+    ['ctrl-img-multi-stagger-y', 'imageMultiStaggerY', 0],
     ['ctrl-hl-fs',             'headlineFontSize',    0],
     ['ctrl-hl-lh',             'headlineLineHeight',  2],
     ['ctrl-img-scale',         'imageScale',          2],
@@ -111,9 +112,24 @@ export function syncControlsToState() {
   const anchor = document.getElementById('ctrl-circle-align');
   if (anchor) anchor.querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.value === state.circleAlignment));
 
-  // Image style thumb
+  // Image style tabs (5-chip strip)
   const styleRow = document.getElementById('ctrl-img-style');
-  if (styleRow) styleRow.querySelectorAll('.img-thumb').forEach(b => b.classList.toggle('active', b.dataset.value === state.imageStyle));
+  if (styleRow) {
+    styleRow.querySelectorAll('.img-style-tab').forEach(b =>
+      b.classList.toggle('active', b.dataset.value === state.imageStyle));
+    // Legacy thumbnail support (older custom builds)
+    styleRow.querySelectorAll('.img-thumb').forEach(b =>
+      b.classList.toggle('active', b.dataset.value === state.imageStyle));
+  }
+  // Image gallery — rebuild from the current style + active card index
+  const gallery = document.getElementById('ctrl-img-idx');
+  if (gallery && typeof gallery._rebuild === 'function') {
+    gallery._rebuild();
+  } else if (gallery) {
+    // Fallback: just toggle the active class
+    gallery.querySelectorAll('.img-gallery-card').forEach(b =>
+      b.classList.toggle('active', parseInt(b.dataset.value, 10) === state.imageStyleIndex));
+  }
 
   syncPaletteSelect();
 
@@ -181,11 +197,19 @@ export function syncControlsToState() {
     ['ctrl-global-op',         'globalOpacity'],
     ['ctrl-depth-shadow',      'depthShadow'],
     ['ctrl-inner-glow',        'innerGlow'],
-    ['ctrl-img-multi',         'imageMulti'],
+    // Slides distribution is always on — force the legacy flag true
+    // so old presets that saved imageMulti:false still render correctly.
     ['ctrl-bar-flip-grad',     'barFlipGradient'],
     ['ctrl-bg-grad-flip',      'bgGradientFlip'],
     ['ctrl-hl-fill',           'headlineFillEnabled'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.checked = state[key]; });
+
+  // Force always-on slides distribution (covers older presets)
+  state.imageMulti = true;
+  // Slide count is restricted to odd numbers (1, 3, 5, 7, 9)
+  let n = Math.max(1, Math.min(9, Math.floor(state.imageMultiCount)));
+  if (n % 2 === 0) n = Math.min(9, n + 1);
+  state.imageMultiCount = n;
 
   updateAspectLabel(state.aspectRatio);
 
