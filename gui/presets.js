@@ -138,18 +138,24 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
     <span>Save Preset</span>`;
   saveBtn.addEventListener('click', () => {
     const ratio = state.aspectRatio;
-    // Auto-name as Style-N, where N is the next number in this aspect.
+    // Auto-name as Style{sep}N. Accept both "Style-N" and "Style N" so
+    // numbering doesn't restart when defaults use one separator and
+    // older saves used the other; new names match the separator of the
+    // most-recent matching preset (falls back to a hyphen).
+    const NAME_RE = /^Style[\s-]+(\d+)$/;
     const all = _loadPresets();
     const inThisAspect = all.filter(p => (p?.snap?.aspectRatio || '1:1') === ratio);
     const usedNumbers = new Set(
       inThisAspect.map(p => {
-        const m = /^Style-(\d+)$/.exec(p.name || '');
+        const m = NAME_RE.exec(p.name || '');
         return m ? parseInt(m[1], 10) : NaN;
       }).filter(n => !isNaN(n))
     );
     let n = 1;
     while (usedNumbers.has(n)) n++;
-    const name = `Style-${n}`;
+    const sep = inThisAspect.find(p => /^Style[\s-]/.test(p.name || ''))
+      ?.name?.match(/^Style([\s-])/)?.[1] || '-';
+    const name = `Style${sep}${n}`;
 
     // Save the full state (including imageStyle, imageStyleIndex, and
     // imageStyleOrder) so the slide context restores on apply.
