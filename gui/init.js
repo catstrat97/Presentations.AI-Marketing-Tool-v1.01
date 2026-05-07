@@ -347,8 +347,8 @@ function buildGUI() {
   });
 
   // ── Composition ──────────────────────────────────────────
-  const fGraphics = registerFolder(pane.addFolder({ title: 'Composition', expanded: false }));
-  into(fGraphics, ct => {
+  const fBackground = registerFolder(pane.addFolder({ title: 'Background', expanded: false }));
+  into(fBackground, ct => {
     ct.classList.add('section-composition');
 
     const cards    = document.createElement('div'); cards.className = 'comp-cards';
@@ -514,14 +514,11 @@ function buildGUI() {
     cardCirc.addEventListener('click', () => switchType('circular'));
     cardImg.addEventListener('click',  () => switchType('image'));
 
-    // Composition-only blur control
+    // Background-wide blur control
     ct.appendChild(mkSlider({ id:'ctrl-blur', label:'Blur', min:0, max:20, step:0.5, key:'blur', decimals:1 }));
-  });
 
-  // ── Graphics (slim: opacity + shadow + inner glow only) ───
-  const fGraphicsFx = registerFolder(pane.addFolder({ title: 'Graphics', expanded: false }));
-  into(fGraphicsFx, ct => {
-    ct.appendChild(mkSubLabel('Global Opacity', 0));
+    // ── Effects (was the standalone 'Graphics' folder) ──────
+    ct.appendChild(mkSubLabel('Global Opacity'));
     ct.appendChild(mkToggle({ id:'ctrl-global-op', label:'Blend as Group', key:'globalOpacity' }));
     ct.appendChild(mkSlider({ id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
       onChange: () => { renderGradientBar(); redraw(); } }));
