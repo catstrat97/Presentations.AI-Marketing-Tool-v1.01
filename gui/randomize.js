@@ -158,11 +158,9 @@ export function syncControlsToState() {
     ['ctrl-curve',         'curveType'],
     ['ctrl-palette-mode',  'paletteMode'],
     ['ctrl-hl-align',      'headlineAlign'],
-    ['ctrl-ft-align',     'footerAlign'],
     ['ctrl-img-dist-mode','imageDistMode'],
     ['ctrl-img-stroke',   'imageStrokeStyle'],
     ['ctrl-hl-font',      'headlineFont'],
-    ['ctrl-ft-font',      'footerFont'],
   ].forEach(([id, key]) => {
     const seg = document.getElementById(id);
     if (!seg) return;
@@ -205,6 +203,10 @@ export function syncControlsToState() {
   // Footer text opacity is hardcoded to 1.0 — UI control removed,
   // overrides any stale values restored from older presets.
   state.footerTextOpacity = 1;
+  // Footer alignment + font weight are also fixed — UI controls
+  // removed, lock to defaults so older presets normalise on apply.
+  state.footerAlign = 'left';
+  state.footerFont  = '500';
 
   // Checkboxes
   [

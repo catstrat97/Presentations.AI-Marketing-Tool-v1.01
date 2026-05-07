@@ -593,13 +593,6 @@ function buildGUI() {
     ftBlock.appendChild(mkSubLabel('Colour', 0));
     ftBlock.appendChild(mkTextBaseControl('ft', { withOpacity: false }));
 
-    ftBlock.appendChild(mkSubLabel('Typography'));
-    ftBlock.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'', key:'footerAlign',
-      options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
-      onChange: updateOverlays }));
-    ftBlock.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'', key:'footerFont',
-      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-
     ct.appendChild(ftBlock);
   });
 
