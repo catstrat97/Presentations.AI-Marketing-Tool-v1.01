@@ -279,19 +279,6 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
           renderList();
         });
         chip.appendChild(delBtn);
-      } else {
-        // Optional visual cue: subtle "default" badge in place of the
-        // delete control so the chip feels balanced and the user knows
-        // this preset is locked.
-        const badge = document.createElement('span');
-        badge.className = 'preset-default-badge';
-        badge.title = 'Built-in preset (cannot be deleted)';
-        badge.innerHTML = `
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="7" width="10" height="7" rx="1.5"/>
-            <path d="M5 7V5a3 3 0 0 1 6 0v2"/>
-          </svg>`;
-        chip.appendChild(badge);
       }
 
       listEl.appendChild(chip);
