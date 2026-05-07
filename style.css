@@ -2881,79 +2881,20 @@ input[type=color]::-webkit-color-swatch {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   FOOTER — scoped spacing
-   Sub-sections (top → bottom):
-     TEXT       : byline input
-     COLOUR     : text base + opacity
-     TYPOGRAPHY : alignment, font weight
+   FOOTER — controls live inline inside the Text Content (.section-
+   headline) folder. Only two ID-scoped rules remain; layout is
+   inherited from the .section-headline .text-base-ctrl rules above.
    ══════════════════════════════════════════════════════════════ */
 
-/* Footer block is now nested inside the Headline section. The wrapper
-   keeps the .section-footer class so the ID-scoped rules below still
-   match without duplication. */
-.headline-footer-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-/* Group divider that introduces the Footer block within Headline. */
-.section-group-divider {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text);
-}
-
-.section-footer .section-label.sub:first-of-type {
-  margin-top: var(--space-2);
-}
-
-/* Byline input — selector is ID-only because the input now lives
-   above the .section-footer wrapper (right under Header Text). */
 #ctrl-ft-byline {
   height: 36px;
   border-radius: 8px;
 }
 
-/* Text base control inside Colour group */
-.section-footer .text-base-ctrl {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.section-footer .text-base-ctrl>.control-row:first-child {
-  display: grid;
-  grid-template-columns: 80px 1fr;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.section-footer .text-base-ctrl>.control-row:first-child>label {
-  margin-bottom: 0;
-}
-
-.section-footer #ctrl-ft-text-base {
+.section-headline #ctrl-ft-text-base {
   width: 100%;
   min-height: 32px;
   border-radius: 8px;
-}
-
-/* Typography segmented (alignment, font weight) */
-.section-footer #ctrl-ft-align,
-.section-footer #ctrl-ft-font {
-  width: 100%;
-  min-height: 38px;
-  border-radius: 8px;
-}
-
-.section-footer .control-row.no-label {
-  display: block;
 }
 
 .section-color-theme #bg-solid-group,

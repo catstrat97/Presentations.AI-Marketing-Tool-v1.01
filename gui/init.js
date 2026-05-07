@@ -577,23 +577,11 @@ function buildGUI() {
     ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0, max:1500, step:1, key:'headlineYPos',    decimals:0, onChange: updateOverlays }));
     ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0, max:700,  step:1, key:'headlinePadding', decimals:0, onChange: updateOverlays }));
 
-    // ── Footer styling (merged under Text Content so all text props
-    //   live in one place; was previously its own folder). Footer text
-    //   itself sits at the top alongside the header text — only the
-    //   styling controls live in this block. Wrapped in .section-footer
-    //   so the legacy footer-scoped CSS still applies.
-    const ftBlock = document.createElement('div');
-    ftBlock.className = 'section-footer headline-footer-block';
-
-    const ftDivider = document.createElement('div');
-    ftDivider.className = 'section-group-divider';
-    ftDivider.textContent = 'Footer';
-    ftBlock.appendChild(ftDivider);
-
-    ftBlock.appendChild(mkSubLabel('Colour', 0));
-    ftBlock.appendChild(mkTextBaseControl('ft', { withOpacity: false }));
-
-    ct.appendChild(ftBlock);
+    // ── Footer Colour (single inline row — the only footer-styling
+    //   control left after Typography was removed; no longer worth a
+    //   group divider + sub-section).
+    ct.appendChild(mkSubLabel('Footer Colour'));
+    ct.appendChild(mkTextBaseControl('ft', { withOpacity: false }));
   });
 
   // ── Slides ────────────────────────────────────────────────
