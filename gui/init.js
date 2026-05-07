@@ -155,7 +155,7 @@ function buildGUI() {
   //   2. Preset list        (filtered to current aspect ratio)
   //   3. Save Preset row    (saves into the active aspect's bucket)
   let _refreshPresetList = null;
-  const fAssetSize = registerFolder(pane.addFolder({ title: 'Asset Size', expanded: false }));
+  const fAssetSize = registerFolder(pane.addFolder({ title: 'Asset Size', expanded: true }));
   into(fAssetSize, ct => {
     ct.classList.add('section-asset-size');
 
