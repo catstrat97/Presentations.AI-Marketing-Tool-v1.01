@@ -460,10 +460,11 @@ export function rebuildCtSwatches() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// TEXT BASE CONTROL — Dark/Light toggle + opacity slider
+// TEXT BASE CONTROL — Dark/Light toggle + (optional) opacity slider
 // ══════════════════════════════════════════════════════════════
 // prefix: 'hl' (headline) | 'ft' (footer)
-export function mkTextBaseControl(prefix) {
+// opts.withOpacity: include the opacity slider (default true)
+export function mkTextBaseControl(prefix, { withOpacity = true } = {}) {
   const baseKey = prefix === 'hl' ? 'headlineTextBase'    : 'footerTextBase';
   const opKey   = prefix === 'hl' ? 'headlineTextOpacity' : 'footerTextOpacity';
 
@@ -487,6 +488,8 @@ export function mkTextBaseControl(prefix) {
     seg.appendChild(btn);
   });
   togRow.appendChild(seg); wrap.appendChild(togRow);
+
+  if (!withOpacity) return wrap;
 
   // Opacity slider
   const opRow = document.createElement('div'); opRow.className = 'control-row slider-row';

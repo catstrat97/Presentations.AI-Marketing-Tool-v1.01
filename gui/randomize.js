@@ -202,6 +202,9 @@ export function syncControlsToState() {
 
   // Fill opacity is hardcoded to 1.0 — no UI control
   state.headlineFillOpacity = 1;
+  // Footer text opacity is hardcoded to 1.0 — UI control removed,
+  // overrides any stale values restored from older presets.
+  state.footerTextOpacity = 1;
 
   // Checkboxes
   [

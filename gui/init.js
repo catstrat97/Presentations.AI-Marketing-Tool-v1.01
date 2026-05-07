@@ -536,8 +536,8 @@ function buildGUI() {
     ct.appendChild(mkSlider({ id:'ctrl-glow-intensity',label:'Intensity',      min:0,    max:1, step:0.01, key:'innerGlowIntensity', decimals:2 }));
   });
 
-  // ── Headline ──────────────────────────────────────────────
-  const fHeadline = registerFolder(pane.addFolder({ title: 'Headline', expanded: false }));
+  // ── Text Content (Headline + Footer) ──────────────────────
+  const fHeadline = registerFolder(pane.addFolder({ title: 'Text Content', expanded: false }));
   into(fHeadline, ct => {
     ct.classList.add('section-headline');
 
@@ -583,11 +583,11 @@ function buildGUI() {
     ftDivider.textContent = 'Footer';
     ftBlock.appendChild(ftDivider);
 
-    ftBlock.appendChild(mkSubLabel('Text', 0));
+    ftBlock.appendChild(mkSubLabel('Footer Text', 0));
     ftBlock.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
 
     ftBlock.appendChild(mkSubLabel('Colour'));
-    ftBlock.appendChild(mkTextBaseControl('ft'));
+    ftBlock.appendChild(mkTextBaseControl('ft', { withOpacity: false }));
 
     ftBlock.appendChild(mkSubLabel('Typography'));
     ftBlock.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'', key:'footerAlign',
