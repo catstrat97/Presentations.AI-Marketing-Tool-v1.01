@@ -2913,8 +2913,9 @@ input[type=color]::-webkit-color-swatch {
   margin-top: var(--space-2);
 }
 
-/* Byline input */
-.section-footer #ctrl-ft-byline {
+/* Byline input — selector is ID-only because the input now lives
+   above the .section-footer wrapper (right under Header Text). */
+#ctrl-ft-byline {
   height: 36px;
   border-radius: 8px;
 }

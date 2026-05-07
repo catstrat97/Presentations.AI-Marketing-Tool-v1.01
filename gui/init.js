@@ -541,10 +541,15 @@ function buildGUI() {
   into(fHeadline, ct => {
     ct.classList.add('section-headline');
 
-    // ── Text ──────────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Text', 0));
+    // ── Header Text ───────────────────────────────────────
+    ct.appendChild(mkSubLabel('Header Text', 0));
     ct.appendChild(mkTextarea({ id:'ctrl-hl-text',  label:'',                key:'headlineText',           rows:3, onChange: updateOverlays }));
     ct.appendChild(mkInput(   { id:'ctrl-hl-words', label:'Highlight Words', key:'headlineHighlightWords',         onChange: updateOverlays }));
+
+    // ── Footer Text (sits right after Header Text so both text
+    //   inputs are adjacent and editable together).
+    ct.appendChild(mkSubLabel('Footer Text'));
+    ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
 
     // ── Colour ────────────────────────────────────────────
     ct.appendChild(mkSubLabel('Colour'));
@@ -572,9 +577,11 @@ function buildGUI() {
     ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0, max:1500, step:1, key:'headlineYPos',    decimals:0, onChange: updateOverlays }));
     ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0, max:700,  step:1, key:'headlinePadding', decimals:0, onChange: updateOverlays }));
 
-    // ── Footer (merged under Headline so all text props live in one
-    //   place; was previously its own folder). Wrapped in
-    //   .section-footer so the legacy footer-scoped CSS still applies.
+    // ── Footer styling (merged under Text Content so all text props
+    //   live in one place; was previously its own folder). Footer text
+    //   itself sits at the top alongside the header text — only the
+    //   styling controls live in this block. Wrapped in .section-footer
+    //   so the legacy footer-scoped CSS still applies.
     const ftBlock = document.createElement('div');
     ftBlock.className = 'section-footer headline-footer-block';
 
@@ -583,10 +590,7 @@ function buildGUI() {
     ftDivider.textContent = 'Footer';
     ftBlock.appendChild(ftDivider);
 
-    ftBlock.appendChild(mkSubLabel('Footer Text', 0));
-    ftBlock.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
-
-    ftBlock.appendChild(mkSubLabel('Colour'));
+    ftBlock.appendChild(mkSubLabel('Colour', 0));
     ftBlock.appendChild(mkTextBaseControl('ft', { withOpacity: false }));
 
     ftBlock.appendChild(mkSubLabel('Typography'));
