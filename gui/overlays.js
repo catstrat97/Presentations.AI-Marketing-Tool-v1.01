@@ -8,6 +8,7 @@ import {
   state,
   PALETTES,
   BG_GRADIENTS,
+  IMAGE_STYLES,
   applyPalette,
   hexToRgb,
   getColorLuma,
