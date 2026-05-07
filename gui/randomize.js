@@ -28,6 +28,23 @@ import {
 // ══════════════════════════════════════════════════════════════
 // RANDOMIZE
 // ══════════════════════════════════════════════════════════════
+
+// Aspect-aware random ranges: counts and diameters that read well at
+// each aspect's proportions. A wide aspect can fit fewer-but-larger
+// circles; a tall aspect benefits from a higher circle count and
+// thicker bar grids. Falls back to the generic ranges if an aspect
+// isn't listed (e.g. a custom value).
+const _ASPECT_RANGES = {
+  '1:1':    { rectCount: [40, 130], circleCount: [4, 14], circleDiameter: [700, 1400] },
+  '4:5':    { rectCount: [60, 150], circleCount: [4, 13], circleDiameter: [600, 1300] },
+  '16:9':   { rectCount: [60, 160], circleCount: [3, 8],  circleDiameter: [700, 1500] },
+  '1.91:1': { rectCount: [60, 160], circleCount: [3, 8],  circleDiameter: [700, 1500] },
+  '9:16':   { rectCount: [40, 110], circleCount: [6, 16], circleDiameter: [500, 1300] },
+};
+const _DEFAULT_RANGES = { rectCount: [10, 70], circleCount: [5, 20], circleDiameter: [200, 1400] };
+
+function _randInt([lo, hi]) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
+
 export function randomize() {
   // ── Visual / aesthetic parameters only ───────────────────────
   // Composition structure (type, curve, baseline, anchor, mirror,
@@ -41,9 +58,10 @@ export function randomize() {
   }
   const palKeys = Object.keys(PALETTES).filter(k => PALETTES[k].tone === state.theme);
 
-  state.rectCount          = Math.floor(Math.random()*60)+10;   // 10–70
-  state.circleCount        = Math.floor(Math.random()*15)+5;
-  state.circleDiameter     = Math.floor(Math.random()*1200)+200;
+  const r = _ASPECT_RANGES[state.aspectRatio] || _DEFAULT_RANGES;
+  state.rectCount          = _randInt(r.rectCount);
+  state.circleCount        = _randInt(r.circleCount);
+  state.circleDiameter     = _randInt(r.circleDiameter);
   state.circleSpacingX     = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
   state.circleSpacingY     = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
   state.spacing            = 0;

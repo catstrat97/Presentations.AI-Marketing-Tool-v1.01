@@ -1078,6 +1078,19 @@ input[type=color]::-webkit-color-swatch {
   color: var(--text);
 }
 
+/* Dark variant — used by Save Preset + Shuffle in the Asset Size section
+   so they read as primary actions, matching the Export PNG button. */
+.grad-action-btn.dark {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.grad-action-btn.dark:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
 .grad-action-btn svg {
   display: block;
   flex-shrink: 0;
@@ -2198,19 +2211,6 @@ input[type=color]::-webkit-color-swatch {
 .section-asset-size .preset-del:hover {
   background: rgba(239,68,68,0.12);
   color: #ef4444;
-}
-
-/* Locked-default badge — same footprint as .preset-del so chips line up */
-.section-asset-size .preset-default-badge {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-dim);
-  opacity: 0.55;
-  pointer-events: none;
 }
 
 .section-asset-size .preset-empty {

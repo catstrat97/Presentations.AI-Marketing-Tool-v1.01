@@ -52,7 +52,6 @@ import {
 import { buildPresetsContent, applyDefaultPreset } from './presets.js';
 import { buildTranslateSection } from './translate.js';
 import {
-  randomize,
   syncControlsToState,
   _applyTheme,
 } from './randomize.js';
@@ -734,8 +733,6 @@ function _initGUI() {
   document.getElementById('btn-export').addEventListener('click', () => {
     if (window._exportCanvas) window._exportCanvas();
   });
-
-  document.getElementById('btn-random').addEventListener('click', randomize);
 
   // ── Make the floating panel draggable by its header ─────────
   const panel  = document.getElementById('panel');
