@@ -214,6 +214,7 @@ export function buildImagePresetControls(sec) {
       state.imageStyle      = key;
       state.imageStyleIndex = 0;
       state.imageStyleOrder = null;
+      state.userImageSrc    = '';   // picking a preset clears the upload
       styleTabs.querySelectorAll('.img-style-tab').forEach(b => b.classList.toggle('active', b.dataset.value === key));
       rebuildGallery();
       applySelectedImage();
@@ -254,6 +255,7 @@ export function buildImagePresetControls(sec) {
       card.appendChild(im);
       card.addEventListener('click', () => {
         state.imageStyleIndex = i;
+        state.userImageSrc    = '';   // picking a card clears the upload
         // In point/cascade mode, clicking a different slide reshuffles
         // the surrounding cascade for a fresh composition. Other modes
         // keep the centred-around-selection layout (no shuffle).
@@ -287,6 +289,7 @@ export function buildImagePresetControls(sec) {
     </svg>
     <span>Shuffle</span>`;
   shuffleBtn.addEventListener('click', () => {
+    state.userImageSrc = '';   // shuffling clears the upload
     const imgs = IMAGE_STYLES[state.imageStyle] || [];
     if (imgs.length > 1) {
       // Pick a different random image from the gallery

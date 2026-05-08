@@ -416,6 +416,10 @@ export const state = {
 
   showImage:       true,
   imageSrc:        '',
+  // User-uploaded slide override. When set (blob: URL from <input type=file>)
+  // every slide position renders this image instead of the IMAGE_STYLES
+  // preset. Cleared when the user clicks a gallery card / shuffle / random.
+  userImageSrc:    '',
   imageScale:      1.0,
   imageYOffset:    0,
   imageStrokeStyle: 'marketing',
