@@ -850,7 +850,7 @@ const sketch = function(p) {
 
     // ── Footer byline ──────────────────────────────────────────
     ctx.save();
-    ctx.font         = `500 ${fontSize}px "Innovator Grotesk", sans-serif`;
+    ctx.font         = `400 ${fontSize}px "Innovator Grotesk", sans-serif`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
     ctx.fillStyle    = textColor;
     ctx.textBaseline = 'middle';

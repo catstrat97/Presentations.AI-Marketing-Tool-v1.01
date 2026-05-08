@@ -227,7 +227,7 @@ body {
 
 #footer-byline {
   font-family: var(--innovator);
-  font-weight: 500;
+  font-weight: 400;
   font-size: calc(54.517px * var(--scale) * var(--footer-text-scale, 1));
   color: #fff;
   /* overridden by JS applyTextAdaptation() */

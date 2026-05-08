@@ -103,6 +103,7 @@ export function randomize() {
   state.imageStyle      = slideChoices[Math.floor(Math.random() * slideChoices.length)];
   state.imageStyleIndex = 0;
   state.imageStyleOrder = null;
+  state.userImageSrc    = '';   // Random picks a new preset slide; clear any upload
 
   const palKeys = Object.keys(PALETTES).filter(k => PALETTES[k].tone === state.theme);
 

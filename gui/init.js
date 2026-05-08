@@ -657,7 +657,12 @@ function buildGUI() {
     fileInp.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
     fileInp.addEventListener('change', e => {
       if (!e.target.files.length) return;
-      state.imageSrc = URL.createObjectURL(e.target.files[0]);
+      // Set as the user-uploaded override — multi-distribution renders
+      // this image in every slide slot. Also write to imageSrc so the
+      // legacy single-slide path stays in sync if anything reads it.
+      const blobUrl = URL.createObjectURL(e.target.files[0]);
+      state.userImageSrc = blobUrl;
+      state.imageSrc     = blobUrl;
       updateOverlays();
     });
     uploadWrap.appendChild(fileInp);

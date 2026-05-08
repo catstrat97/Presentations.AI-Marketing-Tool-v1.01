@@ -368,7 +368,8 @@ export function updateImageDistribution() {
   const sy    = state.imageMultiStaggerY || 0;
 
   // Build the slide order for `count` slots:
-  //   • If the user has Shuffled, honour the shuffled order verbatim.
+  //   • If the user UPLOADED an image, fill every slot with it.
+  //   • Else if the user has Shuffled, honour the shuffled order verbatim.
   //   • Otherwise centre the SELECTED slide (state.imageStyleIndex) at
   //     the middle slot. New slides added by bumping count fan out
   //     symmetrically around that anchor. Clicking a different gallery
@@ -376,7 +377,9 @@ export function updateImageDistribution() {
   const baseImgs   = IMAGE_STYLES[state.imageStyle] || [];
   const isShuffled = !!(state.imageStyleOrder && state.imageStyleOrder.length === baseImgs.length);
   let imgs;
-  if (isShuffled || baseImgs.length === 0) {
+  if (state.userImageSrc) {
+    imgs = new Array(count).fill(state.userImageSrc);
+  } else if (isShuffled || baseImgs.length === 0) {
     imgs = getStyleImages();
   } else {
     const n      = baseImgs.length;
