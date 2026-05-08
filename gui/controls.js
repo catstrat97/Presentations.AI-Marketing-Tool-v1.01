@@ -501,17 +501,23 @@ export function mkAnchorGrid({ id, label, key, onChange }) {
   const lbl = document.createElement('label'); lbl.textContent = label;
   wrap.appendChild(lbl);
   const grid = document.createElement('div'); grid.className = 'anchor-grid'; grid.id = id;
-  const positions = [
-    'top-left','top-center','top-right',
-    'center-left','center','center-right',
-    'bottom-left','bottom-center','bottom-right',
-  ];
-  positions.forEach(value => {
+  // Cross layout — corners removed. Each cell explicitly placed in the
+  // 3×3 grid so the empty corners stay visually balanced.
+  const placements = {
+    'top-center':    [1, 2],
+    'center-left':   [2, 1],
+    'center':        [2, 2],
+    'center-right':  [2, 3],
+    'bottom-center': [3, 2],
+  };
+  Object.entries(placements).forEach(([value, [row, col]]) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'anchor-cell' + (state[key] === value ? ' active' : '');
     btn.dataset.value = value;
     btn.title = value.replace('-', ' ');
+    btn.style.gridRow    = String(row);
+    btn.style.gridColumn = String(col);
     btn.addEventListener('click', () => {
       state[key] = value;
       grid.querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.value === value));

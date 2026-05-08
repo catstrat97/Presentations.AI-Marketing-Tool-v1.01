@@ -19,6 +19,8 @@ import {
   _setSliderFill,
 } from './controls.js';
 import {
+  enforceCircleCoupling,
+  enforceFillCoupling,
   rebuildBgSwatches,
   syncTheme,
   syncTextBaseUI,
@@ -35,7 +37,7 @@ import {
 // thicker bar grids. Falls back to the generic ranges if an aspect
 // isn't listed (e.g. a custom value).
 const _ASPECT_RANGES = {
-  '1:1':    { rectCount: [40, 130], circleCount: [4, 14], circleDiameter: [700, 1400] },
+  '1:1':    { rectCount: [40, 130], circleCount: [4, 14], circleDiameter: [950, 1500] },
   '4:5':    { rectCount: [60, 150], circleCount: [4, 13], circleDiameter: [600, 1300] },
   '16:9':   { rectCount: [60, 160], circleCount: [3, 8],  circleDiameter: [700, 1500] },
   '1.91:1': { rectCount: [60, 160], circleCount: [3, 8],  circleDiameter: [700, 1500] },
@@ -47,8 +49,11 @@ function _randInt([lo, hi]) { return Math.floor(Math.random() * (hi - lo + 1)) +
 
 export function randomize() {
   // ── Visual / aesthetic parameters only ───────────────────────
-  // Composition structure (type, curve, baseline, anchor, mirror,
-  // symmetry) is intentionally NOT randomised — those are manual choices.
+  // Composition structure (type, curve, anchor, mirror, symmetry) is
+  // intentionally NOT randomised — those are manual choices. Baseline
+  // IS randomised, but only between top and bottom — the left/right
+  // baselines look broken without symmetry tuning, so they're never
+  // chosen by Random.
   // When a BG gradient is active its theme is the single source of truth;
   // palette + gradient stop colours must stay within that pool.
   if (state.bgGradientMode && state.bgGradientPreset && BG_GRADIENTS[state.bgGradientPreset]) {
@@ -56,6 +61,49 @@ export function randomize() {
   } else {
     state.theme = Math.random() > 0.5 ? 'warm' : 'cool';
   }
+
+  // Baseline: pick from the options actually allowed by the current
+  // fill-coupling state. Fill OFF disables Bottom + Right (only Top and
+  // Left remain). Fill ON allows the full set.
+  const baselineChoices = state.headlineFillEnabled
+    ? ['top', 'bottom', 'left', 'right']
+    : ['top', 'left'];
+  state.baseline = baselineChoices[Math.floor(Math.random() * baselineChoices.length)];
+  // Symmetry: togglable in fill-off mode, so include it in random.
+  // Mirror axis is locked ON by enforceFillCoupling() at the tail of
+  // randomize() — no need to set it here.
+  state.symmetry = Math.random() > 0.5;
+
+  // Curve: pick from the non-flat options to avoid the "every Random
+  // ends up on a straight line" feel. If the resulting baseline +
+  // symmetry combo restricts curves to {flat, parabolic} the coupling
+  // helper at the tail will snap to 'parabolic' (not 'flat').
+  const curveChoices = ['linear', 'quadratic', 'cubic', 'parabolic', 'hyperbolic', 'bezier', 'noise'];
+  state.curveType = curveChoices[Math.floor(Math.random() * curveChoices.length)];
+
+  // Flip Curve: 20% chance the current value toggles. Most clicks
+  // preserve direction so the user gets continuity; occasional flips
+  // add variety.
+  if (Math.random() < 0.2) state.flipCurve = !state.flipCurve;
+
+  // Text Fill on/off: 20% chance the current value toggles, regardless
+  // of current direction (symmetric).
+  if (Math.random() < 0.2) state.headlineFillEnabled = !state.headlineFillEnabled;
+
+  // Fill colour: 50/50 between the two binary options. The text-base
+  // colour is set to the inverse by enforceFillCoupling() at the tail.
+  state.headlineFillColor = Math.random() > 0.5 ? '#ffffff' : '#000000';
+
+  // Slide style: pick from a theme-constrained set so the slide art
+  // pairs cleanly with the random palette. Reset the slide index to 0
+  // since the new style's image list is unrelated to the old one.
+  const slideChoices = state.theme === 'cool'
+    ? ['style1', 'style3']
+    : ['style2', 'style3', 'style4', 'style5'];
+  state.imageStyle      = slideChoices[Math.floor(Math.random() * slideChoices.length)];
+  state.imageStyleIndex = 0;
+  state.imageStyleOrder = null;
+
   const palKeys = Object.keys(PALETTES).filter(k => PALETTES[k].tone === state.theme);
 
   const r = _ASPECT_RANGES[state.aspectRatio] || _DEFAULT_RANGES;
@@ -66,7 +114,12 @@ export function randomize() {
   state.circleSpacingY     = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
   state.spacing            = 0;
   state.extent             = +(0.4+Math.random()*0.55).toFixed(2);
-  state.opacity            = +(0.55+Math.random()*0.40).toFixed(2);
+  // Anchor 'center-left' forces opacity into the 0.30–0.50 band so the
+  // multi-mirror cascade reads as a translucent stack rather than a
+  // solid wedge. Other anchors get the full 0.55–0.95 range.
+  state.opacity = (state.compositionType === 'circular' && state.circleAlignment === 'center-left')
+    ? +(0.30 + Math.random() * 0.20).toFixed(2)
+    : +(0.55 + Math.random() * 0.40).toFixed(2);
   state.blur               = Math.random()<0.35 ? +(Math.random()*10).toFixed(1) : 0;
   state.innerGlow          = Math.random() > 0.5;
   state.innerGlowIntensity = +(0.3+Math.random()*0.65).toFixed(2);
@@ -81,8 +134,55 @@ export function randomize() {
   state.bgColor = bgs[Math.floor(Math.random()*bgs.length)].color;
   state.imageStrokeStyle = (state.theme === 'cool') ? 'frosty' : 'marketing';
 
+  // ── Defensive theme sync ─────────────────────────────────
+  // Belt-and-braces: confirm palette + bg gradient + bgColor are all in
+  // the same theme as state.theme. Catches any drift from preset
+  // restore, prior session state, or a path where applyPalette ran with
+  // a stale key.
+  const targetTheme = state.theme;
+  if (PALETTES[state.palette]?.tone !== targetTheme && palKeys.length) {
+    state.palette = palKeys[Math.floor(Math.random()*palKeys.length)];
+    applyPalette(state.palette);
+  }
+  if (state.bgGradientMode && state.bgGradientPreset) {
+    const def = BG_GRADIENTS[state.bgGradientPreset];
+    if (def && def.theme !== targetTheme) {
+      const replacement = Object.entries(BG_GRADIENTS).find(([, d]) => d.theme === targetTheme);
+      if (replacement) {
+        state.bgGradientPreset = replacement[0];
+        state.bgGradientStops  = JSON.parse(JSON.stringify(replacement[1].stops));
+        state.bgGradientDir    = replacement[1].dir || 'vertical';
+      }
+    }
+  }
+  // bgColor: re-pick if the chosen swatch doesn't belong to the active
+  // theme/mode bucket (getActiveBgPresets is theme+mode filtered, so
+  // this is mostly a sanity net for race conditions).
+  const validBg = getActiveBgPresets();
+  if (validBg.length && !validBg.some(b => b.color.toLowerCase() === state.bgColor.toLowerCase())) {
+    state.bgColor = validBg[Math.floor(Math.random()*validBg.length)].color;
+  }
+
+  // Fill-box padding: only 1:1 and 4:5 get randomised within a range;
+  // other aspects keep their locked per-aspect value. Top and bottom
+  // are always equal.
+  if (state.aspectRatio === '1:1') {
+    const p = 88 + Math.floor(Math.random() * (156 - 88 + 1));
+    state.headlineFillPaddingTop = p;
+    state.headlineFillPaddingBottom = p;
+  } else if (state.aspectRatio === '4:5') {
+    const p = 108 + Math.floor(Math.random() * (152 - 108 + 1));
+    state.headlineFillPaddingTop = p;
+    state.headlineFillPaddingBottom = p;
+  }
+
   rebuildBgSwatches();
   syncTheme();
+  // Re-apply the fill/palette-mode coupling: if Fill Behind Text is off
+  // we must remain in Sync mode (applyPalette above rebuilt the stops).
+  enforceFillCoupling();
+  // Circle coupling: clamps diameter, syncs anchor / mirror / flipAnchor.
+  enforceCircleCoupling();
   syncControlsToState();
   updateOverlays();
   renderStopList();
@@ -106,14 +206,12 @@ export function syncControlsToState() {
     ['ctrl-ds-spread',         'dsSpread',            2],
     ['ctrl-ds-opacity',        'dsOpacity',           2],
     ['ctrl-glow-intensity',    'innerGlowIntensity',  2],
-    ['ctrl-hl-y',              'headlineYPos',        0],
-    ['ctrl-hl-pad',            'headlinePadding',     0],
+    // Headline sliders (font size, line height, Y position, L/R padding,
+    // fill padding) all removed — values locked per aspect.
     ['ctrl-img-rad',           'imageRadius',         0],
     ['ctrl-img-count',         'imageMultiCount',     0],
     ['ctrl-img-multi-spacing', 'imageMultiSpacing',   0],
     ['ctrl-img-multi-stagger-y', 'imageMultiStaggerY', 0],
-    ['ctrl-hl-fs',             'headlineFontSize',    0],
-    ['ctrl-hl-lh',             'headlineLineHeight',  2],
     ['ctrl-img-scale',         'imageScale',          2],
     ['ctrl-img-y',             'imageYOffset',        0],
     ['ctrl-img-sop',           'imageStrokeOp',       2],
@@ -185,12 +283,23 @@ export function syncControlsToState() {
       b.classList.toggle('active', b.dataset.mode === (state.colorMode || 'dark')));
   }
 
-  // Color pickers
+  // Color pickers (free hex). The fill-colour control is now a binary
+  // Black/White segmented — handled separately below.
   [
     ['ctrl-bgcolor',      'bgColor'],
     ['ctrl-hl-hl-color',  'headlineHighlightColor'],
-    ['ctrl-hl-fill-col',  'headlineFillColor'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.value = state[key]; });
+
+  // Fill-colour binary segmented — sync active class to state value.
+  const fillSeg = document.getElementById('ctrl-hl-fill-col');
+  if (fillSeg) {
+    // Coerce legacy non-binary values to the nearest of black/white.
+    if (state.headlineFillColor !== '#000000' && state.headlineFillColor !== '#ffffff') {
+      state.headlineFillColor = '#000000';
+    }
+    fillSeg.querySelectorAll('.seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.value === state.headlineFillColor));
+  }
 
   // Text areas / inputs
   const hlTa = document.getElementById('ctrl-hl-text');
@@ -206,9 +315,10 @@ export function syncControlsToState() {
     ['ctrl-flip-curve',        'flipCurve'],
     ['ctrl-circle-stagger-auto','circleStaggerAuto'],
     ['ctrl-circle-mirror',     'circleMirrorXY'],
-    ['ctrl-circle-flip-anchor','circleFlipAnchor'],
+    // ctrl-circle-flip-anchor removed from UI — logic in enforceCircleCoupling()
     ['ctrl-circle-text-link',  'circleTextLink'],
-    ['ctrl-global-op',         'globalOpacity'],
+    // ctrl-global-op removed — globalOpacity is now permanently true
+    // (forced below to migrate older presets that saved it false).
     ['ctrl-depth-shadow',      'depthShadow'],
     ['ctrl-inner-glow',        'innerGlow'],
     // Slides distribution is always on — force the legacy flag true
@@ -224,6 +334,8 @@ export function syncControlsToState() {
   let n = Math.max(1, Math.min(9, Math.floor(state.imageMultiCount)));
   if (n % 2 === 0) n = Math.min(9, n + 1);
   state.imageMultiCount = n;
+  // Blend-as-group is permanently on; legacy presets get corrected here.
+  state.globalOpacity = true;
 
   updateAspectLabel(state.aspectRatio);
 

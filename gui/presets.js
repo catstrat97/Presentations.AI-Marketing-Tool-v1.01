@@ -10,6 +10,7 @@ import {
 } from '../shared.js';
 import { DEFAULT_PRESETS } from '../default-presets.js';
 import { randomize } from './randomize.js';
+import { enforceFillCoupling } from './overlays.js';
 
 // Re-derive imageSrc from the saved imageStyle + imageStyleIndex so the
 // slide visual rides along with each preset.
@@ -36,6 +37,10 @@ function _applyPresetSnap(snap) {
     state.footerTextBase = luma > 128 ? '#ffffff' : '#050505';
   }
   _applyPresetSlide();
+  // Apply the fill/palette-mode coupling whenever a preset snap is
+  // restored so older snaps that saved fill-off + non-sync paletteMode
+  // get auto-corrected to sync, and the segmented lock state matches.
+  enforceFillCoupling();
 }
 
 // Public: apply the first preset for the active aspect (used at boot).

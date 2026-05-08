@@ -52,62 +52,70 @@ const _ASPECT_DEFAULTS_BASE = {
   imageRadius:          12,    // 1:1 and 9:16 override to 18
 };
 
+// Locked-in headline values per aspect (no longer adjustable from the
+// GUI — Font Size / Line Height / Y Position / L/R Padding / Fill
+// Padding sliders have all been removed). For 1:1 and 4:5 the fill
+// padding gets re-rolled within a range by Random; the value below is
+// just the initial default. For 16:9 / 9:16 / 1.91:1 it stays locked.
 const _ASPECT_DEFAULTS_OVERRIDES = {
   // ── 1:1 Square ────────────────────────────────────────────
   '1:1': {
-    headlineFontSize:        147,
-    headlineYPos:            214,
+    headlineFontSize:        148,    // locked
+    headlineLineHeight:      1.10,   // locked
+    headlineYPos:            214,    // locked
     headlineTracking:        -5.9,
-    headlinePadding:         338,
-    headlineFillPaddingTop:  150,
-    headlineFillPaddingBottom: 140,
+    headlinePadding:         338,    // L/R padding — locked at default
+    headlineFillPaddingTop:  122,    // mid of 88–156 range; randomised by Random
+    headlineFillPaddingBottom: 122,
     imageScale:              1.46,
     imageYOffset:            604,
     imageRadius:             18,
   },
   // ── 4:5 Portrait ──────────────────────────────────────────
   '4:5': {
-    headlineFontSize:        145,
-    headlineYPos:            206,
+    headlineFontSize:        148,    // locked
+    headlineLineHeight:      1.10,   // locked
+    headlineYPos:            206,    // locked
     headlineTracking:        -4.8,
-    headlinePadding:         260,
-    headlineFillPaddingTop:  84,
-    headlineFillPaddingBottom: 84,
+    headlinePadding:         260,    // L/R padding — locked at default
+    headlineFillPaddingTop:  130,    // mid of 108–152 range; randomised by Random
+    headlineFillPaddingBottom: 130,
     imageScale:              1.55,
     imageYOffset:            590,
   },
   // ── 16:9 Landscape ────────────────────────────────────────
   '16:9': {
-    headlineFontSize:        82,
-    headlineYPos:            120,
+    headlineFontSize:        100,    // locked
+    headlineLineHeight:      1.15,   // locked
+    headlineYPos:            120,    // locked
     headlineTracking:        -3.2,
-    headlineLineHeight:      1.15,
-    headlinePadding:         420,
-    headlineFillPaddingTop:  100,
-    headlineFillPaddingBottom: 90,
+    headlinePadding:         100,    // L/R padding — locked
+    headlineFillPaddingTop:  92,     // locked
+    headlineFillPaddingBottom: 92,
     imageScale:              1.10,
     imageYOffset:            -90,
   },
   // ── 1.91:1 (almost identical to 16:9) ─────────────────────
   '1.91:1': {
-    headlineFontSize:        82,
-    headlineYPos:            120,
+    headlineFontSize:        100,    // locked
+    headlineLineHeight:      1.15,   // locked
+    headlineYPos:            120,    // locked
     headlineTracking:        -3.2,
-    headlineLineHeight:      1.15,
-    headlinePadding:         440,
-    headlineFillPaddingTop:  100,
-    headlineFillPaddingBottom: 90,
+    headlinePadding:         104,    // L/R padding — locked
+    headlineFillPaddingTop:  80,     // locked
+    headlineFillPaddingBottom: 80,
     imageScale:              1.10,
     imageYOffset:            -90,
   },
   // ── 9:16 Story ────────────────────────────────────────────
   '9:16': {
-    headlineFontSize:        172,
-    headlineYPos:            260,
+    headlineFontSize:        172,    // locked
+    headlineLineHeight:      1.20,   // locked
+    headlineYPos:            260,    // locked
     headlineTracking:        -6.9,
-    headlinePadding:         140,
-    headlineFillPaddingTop:  220,
-    headlineFillPaddingBottom: 210,
+    headlinePadding:         184,    // L/R padding — locked
+    headlineFillPaddingTop:  104,    // locked
+    headlineFillPaddingBottom: 104,
     imageScale:              1.49,
     imageYOffset:            1430,
     imageRadius:             18,
@@ -393,7 +401,7 @@ export const state = {
   headlineTextOpacity:    1.0,          // 0–1, applied on top of base
   headlineTextColor:      '#ffffff',   // computed by applyTextAdaptation(), do not set manually
   headlineFillEnabled:    true,
-  headlineFillColor:      '#121212',
+  headlineFillColor:      '#000000',  // binary: '#000000' or '#ffffff'
   // Dynamic fill-box paddings (design units). Per-aspect defaults
   // override these via ASPECT_RATIO_DEFAULTS.
   headlineFillPaddingTop:    214,

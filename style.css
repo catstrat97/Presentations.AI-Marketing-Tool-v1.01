@@ -777,6 +777,24 @@ input[type=color]::-webkit-color-swatch {
   background: var(--input-bg);
 }
 
+/* Locked variant — controls forced into a single value by another
+   constraint (e.g. palette mode is locked to "sync" when Fill Behind
+   Text is off). Visually dimmed, all clicks ignored. */
+.segmented.locked,
+.toggle-row.locked {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* Per-button disabled state inside an otherwise interactive segmented.
+   Used for the Bottom baseline option when Fill Behind Text is off. */
+.segmented .seg-btn.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
 .seg-btn {
   flex: 1;
   background: transparent;

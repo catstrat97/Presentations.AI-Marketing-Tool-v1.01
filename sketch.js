@@ -773,27 +773,67 @@ const sketch = function(p) {
     const scale    = (ab.width / DESIGN_W) * ES;
 
     // ── Replicate backdrop-filter: blur(100px) + rgba(0,0,0,0.6) ──
-    // 1. Snapshot everything already drawn on the export canvas.
-    // 2. Clip to footer rect, redraw snapshot through a blur filter —
-    //    this is the canvas equivalent of backdrop-filter: blur().
-    // 3. Overlay rgba(0,0,0,0.6) to match the CSS background colour.
-    // CSS backdrop-filter:blur(100px) → 100 CSS-px × ES = export canvas pixels.
-    // (ab.width/2696 was wrong — the CSS blur value is in viewport px, not design units.)
-    const blurRadius = 100 * ES;
-    const snap = document.createElement('canvas');
-    snap.width  = ctx.canvas.width;
-    snap.height = ctx.canvas.height;
-    snap.getContext('2d').drawImage(ctx.canvas, 0, 0);
+    // (1) Snapshot the entire export canvas to a separate buffer.
+    //     Drawing ctx.canvas onto itself is spec-allowed but flaky in
+    //     practice on export canvases — going through a stable
+    //     intermediate avoids silent failures we were hitting.
+    // (2) Downscale the footer region to a tiny canvas — bilinear
+    //     filtering during this single drawImage already does most
+    //     of the perceived blur.
+    // (3) Soft ctx.filter pass on the tiny canvas to smooth aliasing.
+    // (4) Upscale back, clipped to the footer rect.
+    // (5) rgba(0,0,0,0.5) overlay (slightly lighter than CSS's 0.6 so
+    //     the blurred backdrop reads through clearly in PNG export).
+    const SCALE_DOWN = 24;
+    const SMALL_BLUR = 4;
+    const pad        = Math.ceil(60 * (ctx.canvas.width / Math.max(1, ab.width)));
 
+    // Step 1 — full-canvas snapshot.
+    const fullSnap = document.createElement('canvas');
+    fullSnap.width  = ctx.canvas.width;
+    fullSnap.height = ctx.canvas.height;
+    fullSnap.getContext('2d').drawImage(ctx.canvas, 0, 0);
+
+    const cropX = Math.max(0, Math.floor(rect.x - pad));
+    const cropY = Math.max(0, Math.floor(rect.y - pad));
+    const cropR = Math.min(fullSnap.width,  Math.ceil(rect.x + rect.w + pad));
+    const cropB = Math.min(fullSnap.height, Math.ceil(rect.y + rect.h + pad));
+    const cropW = Math.max(1, cropR - cropX);
+    const cropH = Math.max(1, cropB - cropY);
+
+    const smallW = Math.max(1, Math.ceil(cropW / SCALE_DOWN));
+    const smallH = Math.max(1, Math.ceil(cropH / SCALE_DOWN));
+
+    // Step 2 — crop + downscale.
+    const small = document.createElement('canvas');
+    small.width  = smallW;
+    small.height = smallH;
+    const sctx = small.getContext('2d');
+    sctx.imageSmoothingEnabled = true;
+    sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(fullSnap, cropX, cropY, cropW, cropH, 0, 0, smallW, smallH);
+
+    // Step 3 — soft blur on the tiny canvas.
+    const small2 = document.createElement('canvas');
+    small2.width  = smallW;
+    small2.height = smallH;
+    const s2ctx = small2.getContext('2d');
+    s2ctx.filter = `blur(${SMALL_BLUR}px)`;
+    s2ctx.drawImage(small, 0, 0);
+    s2ctx.filter = 'none';
+
+    // Step 4 — upscale back, clipped to footer rect.
     ctx.save();
     ctx.beginPath();
     ctx.rect(rect.x, rect.y, rect.w, rect.h);
     ctx.clip();
-    ctx.filter = `blur(${blurRadius}px)`;
-    ctx.drawImage(snap, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(small2, 0, 0, smallW, smallH, cropX, cropY, cropW, cropH);
     ctx.restore();
 
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    // Step 5 — dark tint, lighter than CSS's 0.6 so blur is visible.
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
 
     // Inset top highlight (matches CSS inset box-shadow)

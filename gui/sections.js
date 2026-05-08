@@ -42,6 +42,14 @@ export function buildGradientSection(sec) {
     id: 'ctrl-palette-mode', label: '', key: 'paletteMode',
     options: [['normal', 'Normal'], ['symmetrical', 'Symmetrical'], ['sync', 'Sync']],
     onChange: (v) => {
+      // Locked to Sync when fill is off — revert any other selection.
+      if (!state.headlineFillEnabled && v !== 'sync') {
+        state.paletteMode = 'sync';
+        const seg = document.getElementById('ctrl-palette-mode');
+        if (seg) seg.querySelectorAll('.seg-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.value === 'sync'));
+        return;
+      }
       state.paletteMode = v;
       if (v === 'symmetrical') enforceSymmetrical();
       else if (v === 'sync')   enforceSync();

@@ -36,6 +36,8 @@ import {
 import {
   applyTextAdaptation,
   autoAssignTextColor,
+  enforceCircleCoupling,
+  enforceFillCoupling,
   onBgChanged,
   rebuildBgSwatches,
   rebuildCtSwatches,
@@ -177,6 +179,8 @@ function buildGUI() {
 
         updateAspectLabel(v);
         syncControlsToState();
+        // Circle diameter min flips between 50 and 950 depending on aspect.
+        enforceCircleCoupling();
         updateOverlays();
         if (window._p5Resize) window._p5Resize();
         // Refresh the filtered preset list so only this aspect's
@@ -370,7 +374,11 @@ function buildGUI() {
     groupRect.className = 'ctrl-group' + (state.compositionType === 'rectangle' ? ' active' : '');
     groupRect.appendChild(mkSlider({ id:'ctrl-count',    label:'Rectangle Count',   min:2,   max:120,  step:1,   key:'rectCount' }));
     groupRect.appendChild(mkSlider({ id:'ctrl-spacing',  label:'Item Spacing',      min:0,   max:30,   step:0.5, key:'spacing',   decimals:1 }));
-    groupRect.appendChild(mkToggle({ id:'ctrl-symmetry', label:'Symmetry (size)',   key:'symmetry' }));
+    groupRect.appendChild(mkToggle({ id:'ctrl-symmetry', label:'Symmetry (size)',   key:'symmetry',
+      // Symmetry change can flip the curve filter (top baseline + sym off
+      // restricts curves to Flat/Parabolic).
+      onChange: () => { enforceFillCoupling(); redraw(); },
+    }));
     groupRect.appendChild(mkToggle({ id:'ctrl-mirror-y', label:'Mirror Axis',       key:'mirrorY'  }));
     groupRect.appendChild(mkSegmented({ id:'ctrl-baseline', label:'Baseline Direction', key:'baseline',
       options:[
@@ -379,6 +387,9 @@ function buildGUI() {
         ['left',   ICONS.baseLeft,   'Left — grow rightward'],
         ['right',  ICONS.baseRight,  'Right — grow leftward'],
       ],
+      // Refresh fill/symmetry coupling whenever baseline changes so the
+      // symmetry lock kicks in/out correctly for left/right vs top/bottom.
+      onChange: () => { enforceFillCoupling(); redraw(); },
     }));
     ct.appendChild(groupRect);
 
@@ -389,9 +400,28 @@ function buildGUI() {
     groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',        label:'Circle Count',                      min:2,    max:40,   step:1,  key:'circleCount' }));
     groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',            label:'Max Diameter',                      min:50,   max:2000, step:10, key:'circleDiameter' }));
     groupCirc.appendChild(mkToggle({ id:'ctrl-circle-stagger-auto', label:'Auto Stagger',                       key:'circleStaggerAuto' }));
-    groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align',    label:'Anchor Position',                   key:'circleAlignment' }));
-    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',       label:'Mirror X & Y Axis',                 key:'circleMirrorXY' }));
-    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-flip-anchor',  label:'Flip Anchor',                       key:'circleFlipAnchor' }));
+    groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align',    label:'Anchor Position',                   key:'circleAlignment',
+      onChange: (v) => {
+        // Anchor 'center-left' rerolls opacity into the 0.30–0.50 band
+        // (the Random button does the same when it lands on this anchor).
+        if (v === 'center-left') {
+          state.opacity = +(0.30 + Math.random() * 0.20).toFixed(2);
+          const opSlider = document.getElementById('ctrl-opacity');
+          if (opSlider) {
+            opSlider.value = String(state.opacity);
+            const valEl = opSlider.closest('.slider-row')?.querySelector('.val');
+            if (valEl) valEl.textContent = state.opacity.toFixed(2);
+          }
+        }
+        enforceCircleCoupling();
+        redraw();
+      },
+    }));
+    groupCirc.appendChild(mkToggle({ id:'ctrl-circle-mirror',       label:'Mirror X & Y Axis',                 key:'circleMirrorXY',
+      // Mirror change feeds the hidden Flip Anchor logic.
+      onChange: () => { enforceCircleCoupling(); redraw(); },
+    }));
+    // Flip Anchor toggle removed — logic now lives in enforceCircleCoupling().
     groupCirc.appendChild(mkSubLabel('Text-Aware Positioning'));
     groupCirc.appendChild(mkToggle({
       id: 'ctrl-circle-text-link', label: 'Link X to Headline', key: 'circleTextLink',
@@ -508,6 +538,11 @@ function buildGUI() {
       groupCirc.classList.toggle('active', type === 'circular');
       groupImg.classList.toggle('active',  type === 'image');
       curveWrap.style.display = (type === 'circular' || type === 'image') ? 'none' : '';
+      // Re-apply the fill/palette-mode coupling so the lock state and
+      // sync-corrected gradient stops stay current for the new comp.
+      enforceFillCoupling();
+      // Circle-comp coupling: refresh diameter min, anchor lock state etc.
+      enforceCircleCoupling();
       redraw();
     };
     cardRect.addEventListener('click', () => switchType('rectangle'));
@@ -518,8 +553,9 @@ function buildGUI() {
     ct.appendChild(mkSlider({ id:'ctrl-blur', label:'Blur', min:0, max:20, step:0.5, key:'blur', decimals:1 }));
 
     // ── Effects (was the standalone 'Graphics' folder) ──────
-    ct.appendChild(mkSubLabel('Global Opacity'));
-    ct.appendChild(mkToggle({ id:'ctrl-global-op', label:'Blend as Group', key:'globalOpacity' }));
+    // Blend-as-group is permanently on; the toggle has been removed.
+    state.globalOpacity = true;
+    ct.appendChild(mkSubLabel('Opacity'));
     ct.appendChild(mkSlider({ id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
       onChange: () => { renderGradientBar(); redraw(); } }));
 
@@ -556,41 +592,47 @@ function buildGUI() {
     // ── Fill ──────────────────────────────────────────────
     ct.appendChild(mkSubLabel('Fill'));
     ct.appendChild(mkToggle({ id:'ctrl-hl-fill',     label:'Fill Behind Text', key:'headlineFillEnabled',
-      onChange: () => { updateOverlays(); redraw(); } }));
-    ct.appendChild(mkColor( { id:'ctrl-hl-fill-col', label:'Fill Colour',      key:'headlineFillColor', onChange: updateOverlays }));
-    // Symmetric Top + Bottom padding for the fill box. The slider writes
-    // to headlineFillPaddingTop and mirrors the value into ...Bottom so
-    // the box stays balanced. Constrained range keeps it compositional.
-    ct.appendChild(mkSlider({
-      id:'ctrl-hl-fill-pad-top', label:'Padding',
-      min:40, max:200, step:4,
-      key:'headlineFillPaddingTop', decimals:0,
       onChange: () => {
-        state.headlineFillPaddingBottom = state.headlineFillPaddingTop;
+        // When fill toggles ON, force the headline text colour to the
+        // inverse of the fill colour (black fill → white text, white
+        // fill → black text). When OFF, autoAssignTextColor() will
+        // pick a base from the canvas BG luma in updateOverlays().
+        if (state.headlineFillEnabled) {
+          state.headlineTextBase = state.headlineFillColor === '#ffffff' ? '#050505' : '#ffffff';
+        }
+        enforceFillCoupling();
         updateOverlays();
+        redraw();
+      } }));
+    // Fill colour: binary Black / White (no free picker). The headline
+    // text colour locks to the inverse so contrast is always readable.
+    ct.appendChild(mkSegmented({
+      id: 'ctrl-hl-fill-col', label: 'Fill Colour', key: 'headlineFillColor',
+      options: [['#000000', 'Black'], ['#ffffff', 'White']],
+      onChange: (v) => {
+        state.headlineFillColor = v;
+        state.headlineTextBase  = v === '#ffffff' ? '#050505' : '#ffffff';
+        updateOverlays();
+        redraw();
       },
     }));
+    // Fill-box padding slider removed — value is locked per aspect, with
+    // 1:1 and 4:5 randomised within their ranges by the Random button.
 
-    // ── Typography ────────────────────────────────────────
+    // ── Typography (Font Size, Line Height removed — locked per aspect) ─
     ct.appendChild(mkSubLabel('Typography'));
     ct.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'', key:'headlineAlign',
       options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
       onChange: updateOverlays }));
     ct.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'', key:'headlineFont',
       options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-fs', label:'Font Size',   min:10,  max:300, step:1,    key:'headlineFontSize',   decimals:0, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-lh', label:'Line Height', min:0.5, max:2.5, step:0.05, key:'headlineLineHeight', decimals:2, onChange: updateOverlays }));
+    // Position section removed entirely — Y Position and L/R Padding are
+    // both locked per aspect via ASPECT_RATIO_DEFAULTS.
 
-    // ── Position ──────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Position'));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0, max:1500, step:1, key:'headlineYPos',    decimals:0, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0, max:700,  step:1, key:'headlinePadding', decimals:0, onChange: updateOverlays }));
-
-    // ── Footer Colour (single inline row — the only footer-styling
-    //   control left after Typography was removed; no longer worth a
-    //   group divider + sub-section).
-    ct.appendChild(mkSubLabel('Footer Colour'));
-    ct.appendChild(mkTextBaseControl('ft', { withOpacity: false }));
+    // Footer text is locked to light — no Dark/Light toggle exposed.
+    // (Force the value here in case a legacy preset/state had it dark.)
+    state.footerTextBase    = '#ffffff';
+    state.footerTextOpacity = 1.0;
   });
 
   // ── Slides ────────────────────────────────────────────────
@@ -691,6 +733,8 @@ function _initGUI() {
   renderStopList();
   renderCurvePreview();
   autoAssignTextColor(); // sets smart default text colour for initial BG
+  enforceFillCoupling(); // lock palette mode to Sync if fill is off at boot
+  enforceCircleCoupling(); // diameter min, anchor remap, mirror lock at boot
   updateOverlays();
   syncTheme();
 

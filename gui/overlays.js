@@ -70,7 +70,8 @@ export function autoAssignTextColor() {
   if (!state.headlineFillEnabled) {
     state.headlineTextBase = base;
   }
-  state.footerTextBase = base;
+  // Footer text is locked to light — never auto-flips to dark.
+  state.footerTextBase = '#ffffff';
   applyTextAdaptation();
   syncTextBaseUI();
 }
@@ -102,6 +103,228 @@ export function onBgChanged() {
     renderGradientBar();
     renderStopList();
     if (window._p5Redraw) window._p5Redraw();
+  }
+}
+
+// ── Fill / palette-mode coupling ──────────────────────────────
+// Rule: when Fill Behind Text is OFF, the shape gradient must be in
+// Sync mode (so the dark stop tracks the BG colour) and the user
+// cannot switch to Normal/Symmetrical. When fill is ON, the segmented
+// is interactive again. Also re-runs autoAssignTextColor so the
+// headline base colour adapts to the canvas BG when fill is off.
+// Curve options that remain selectable in the constrained
+// fill-off + top-baseline + symmetry-off mode.
+const _CURVES_TOP_NOSYM = new Set(['flat', 'parabolic']);
+
+// Anchor positions retained after corner removal. Used to remap legacy
+// state values (e.g. an old preset stored 'top-left') to a safe value.
+const _CIRCLE_ANCHOR_REMAP = {
+  'top-left': 'top-center',
+  'top-right': 'top-center',
+  'bottom-left': 'bottom-center',
+  'bottom-right': 'bottom-center',
+};
+
+// ── Circular composition coupling ─────────────────────────────
+// Rules:
+//   • In 1:1 + circular comp, diameter slider min = 950 (else 50).
+//   • Anchor 'center-left' forces Mirror Mode ON and locks it.
+//   • Hidden Flip Anchor logic:
+//       anchor='top-center' + mirror off → flipAnchor true
+//       anchor='bottom-center'           → flipAnchor false
+//       (other anchors leave flipAnchor untouched)
+//   • If the saved anchor is one of the removed corners, remap to the
+//     nearest still-valid position so old presets don't break.
+export function enforceCircleCoupling() {
+  // Remap legacy corner anchors
+  if (_CIRCLE_ANCHOR_REMAP[state.circleAlignment]) {
+    state.circleAlignment = _CIRCLE_ANCHOR_REMAP[state.circleAlignment];
+  }
+
+  // ── Diameter slider min (950 only for 1:1 + circular comp) ─
+  const diaSlider = document.getElementById('ctrl-diameter');
+  if (diaSlider) {
+    const minD = (state.compositionType === 'circular' && state.aspectRatio === '1:1') ? 950 : 50;
+    diaSlider.min = String(minD);
+    if (state.circleDiameter < minD) {
+      state.circleDiameter = minD;
+      diaSlider.value = String(minD);
+      _setSliderFill(diaSlider);
+      const valEl = diaSlider.closest('.slider-row')?.querySelector('.val');
+      if (valEl) valEl.textContent = String(minD);
+    }
+  }
+
+  // ── Mirror lock when anchor = center-left ────────────────
+  const mirInp = document.getElementById('ctrl-circle-mirror');
+  const mirRow = mirInp?.closest('.toggle-row');
+  if (state.circleAlignment === 'center-left') {
+    state.circleMirrorXY = true;
+    if (mirInp) mirInp.checked = true;
+    if (mirRow) {
+      mirRow.classList.add('locked');
+      mirRow.title = 'Mirror Mode is required when Anchor is Left';
+    }
+  } else if (mirRow) {
+    mirRow.classList.remove('locked');
+    mirRow.removeAttribute('title');
+  }
+
+  // ── Hidden Flip Anchor logic ─────────────────────────────
+  if (state.circleAlignment === 'top-center' && !state.circleMirrorXY) {
+    state.circleFlipAnchor = true;
+  } else if (state.circleAlignment === 'bottom-center') {
+    state.circleFlipAnchor = false;
+  }
+  // Other anchors: leave flipAnchor untouched (it's a no-op visually)
+
+  // ── Active state on the anchor grid ──────────────────────
+  const anchorGrid = document.getElementById('ctrl-circle-align');
+  if (anchorGrid) {
+    anchorGrid.querySelectorAll('.anchor-cell').forEach(c =>
+      c.classList.toggle('active', c.dataset.value === state.circleAlignment));
+  }
+}
+
+export function enforceFillCoupling() {
+  const palSeg     = document.getElementById('ctrl-palette-mode');
+  const symInp     = document.getElementById('ctrl-symmetry');
+  const symRow     = symInp?.closest('.toggle-row');
+  const mirInp     = document.getElementById('ctrl-mirror-y');
+  const mirRow     = mirInp?.closest('.toggle-row');
+  const baseSeg    = document.getElementById('ctrl-baseline');
+  const baseBottom = baseSeg?.querySelector('.seg-btn[data-value="bottom"]');
+  const baseRight  = baseSeg?.querySelector('.seg-btn[data-value="right"]');
+  const curveSeg   = document.getElementById('ctrl-curve');
+
+  if (!state.headlineFillEnabled) {
+    // ── Palette mode: lock to sync ──────────────────────────
+    // Always enforce — Random/applyPalette/etc. may have rebuilt
+    // state.gradientStops without the sync constraint applied.
+    state.paletteMode = 'sync';
+    enforceSync();
+    renderGradientBar();
+    renderStopList();
+    if (palSeg) {
+      palSeg.classList.add('locked');
+      palSeg.title = 'Sync mode is required when Fill Behind Text is off';
+      palSeg.querySelectorAll('.seg-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.value === 'sync'));
+    }
+    autoAssignTextColor();
+
+    // ── Baseline: bottom + right options disabled ────────────
+    // If state.baseline is on a now-disabled option, flip to a safe one.
+    if (state.baseline === 'bottom' || state.baseline === 'right') {
+      state.baseline = 'top';
+      if (baseSeg) baseSeg.querySelectorAll('.seg-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.value === 'top'));
+    }
+    if (baseBottom) {
+      baseBottom.classList.add('disabled');
+      baseBottom.title = 'Bottom baseline is disabled when Fill Behind Text is off';
+    }
+    if (baseRight) {
+      baseRight.classList.add('disabled');
+      baseRight.title = 'Right baseline is disabled when Fill Behind Text is off';
+    }
+
+    // ── Mirror axis: locked ON for every fill-off baseline ──
+    state.mirrorY = true;
+    if (mirInp) mirInp.checked = true;
+    if (mirRow) {
+      mirRow.classList.add('locked');
+      mirRow.title = 'Mirror Axis is required when Fill Behind Text is off';
+    }
+
+    // Symmetry: stays togglable in fill-off mode (no lock).
+    if (symRow) {
+      symRow.classList.remove('locked');
+      symRow.removeAttribute('title');
+    }
+
+    // ── Curve options: when baseline is top AND symmetry is off,
+    //    only Flat and Parabolic produce readable compositions.
+    //    Disable everything else and snap state.curveType if it lands
+    //    on a now-forbidden option.
+    if (curveSeg) {
+      const restrict = state.baseline === 'top' && !state.symmetry;
+      curveSeg.querySelectorAll('.seg-btn').forEach(b => {
+        const allowed = !restrict || _CURVES_TOP_NOSYM.has(b.dataset.value);
+        b.classList.toggle('disabled', !allowed);
+        if (allowed) b.removeAttribute('title');
+        else b.title = 'Only Flat and Parabolic curves work with Top baseline + Symmetry off + Fill off';
+      });
+      if (restrict && !_CURVES_TOP_NOSYM.has(state.curveType)) {
+        // Prefer Parabolic over Flat — Random excludes Flat, so snapping
+        // here would otherwise pull every restricted preset back to a
+        // straight line.
+        state.curveType = 'parabolic';
+        curveSeg.querySelectorAll('.seg-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.value === 'parabolic'));
+      }
+    }
+  } else {
+    if (palSeg) {
+      palSeg.classList.remove('locked');
+      palSeg.removeAttribute('title');
+    }
+    if (mirRow) {
+      mirRow.classList.remove('locked');
+      mirRow.removeAttribute('title');
+    }
+    if (baseBottom) {
+      baseBottom.classList.remove('disabled');
+      baseBottom.removeAttribute('title');
+    }
+    if (baseRight) {
+      baseRight.classList.remove('disabled');
+      baseRight.removeAttribute('title');
+    }
+    if (curveSeg) {
+      curveSeg.querySelectorAll('.seg-btn').forEach(b => {
+        b.classList.remove('disabled');
+        b.removeAttribute('title');
+      });
+    }
+
+    // ── Symmetry lock when fill ON + baseline top/bottom ─────
+    // Mirrored compositions only read cleanly with symmetry on, so
+    // when the user enables fill and the baseline is vertical, force
+    // symmetry on and grey out the toggle. Left/right baselines stay
+    // togglable (they don't have the same readability constraint).
+    const verticalBaseline = state.baseline === 'top' || state.baseline === 'bottom';
+    if (verticalBaseline) {
+      state.symmetry = true;
+      if (symInp) symInp.checked = true;
+      if (symRow) {
+        symRow.classList.add('locked');
+        symRow.title = 'Symmetry is required when Fill Behind Text is on with a top/bottom baseline';
+      }
+    } else if (symRow) {
+      symRow.classList.remove('locked');
+      symRow.removeAttribute('title');
+    }
+  }
+
+  // Headline → Colour text-base segmented: locked & dimmed when fill is
+  // on (text colour is forced to the inverse of fill colour). Stays
+  // interactive when fill is off (autoAssignTextColor drives it).
+  const hlTextSeg = document.getElementById('ctrl-hl-text-base');
+  if (state.headlineFillEnabled) {
+    // Force the inverse of the fill colour, then sync the segmented +
+    // overlay so the canvas updates immediately.
+    state.headlineTextBase = state.headlineFillColor === '#ffffff' ? '#050505' : '#ffffff';
+    applyTextAdaptation();
+    if (hlTextSeg) {
+      hlTextSeg.classList.add('locked');
+      hlTextSeg.title = 'Text colour is set automatically from Fill colour when Fill is on';
+      hlTextSeg.querySelectorAll('.seg-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.value === state.headlineTextBase));
+    }
+  } else if (hlTextSeg) {
+    hlTextSeg.classList.remove('locked');
+    hlTextSeg.removeAttribute('title');
   }
 }
 
