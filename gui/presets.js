@@ -9,6 +9,7 @@ import {
   IMAGE_STYLES,
 } from '../shared.js';
 import { DEFAULT_PRESETS } from '../default-presets.js';
+import { randomize } from './randomize.js';
 
 // Re-derive imageSrc from the saved imageStyle + imageStyleIndex so the
 // slide visual rides along with each preset.
@@ -164,57 +165,24 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
     renderList();
   });
 
-  const shuffleBtn = document.createElement('button');
-  shuffleBtn.type = 'button';
-  shuffleBtn.className = 'grad-action-btn';
-  shuffleBtn.title = 'Shuffle the preset order for this aspect';
-  shuffleBtn.innerHTML = `
+  const randomBtn = document.createElement('button');
+  randomBtn.type = 'button';
+  randomBtn.className = 'grad-action-btn';
+  randomBtn.title = 'Randomise the design';
+  randomBtn.innerHTML = `
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 4h3l3 8h3"/><path d="M2 12h3l3-8h3"/>
-      <path d="M11 2l3 2-3 2"/><path d="M11 10l3 2-3 2"/>
+      <rect x="2" y="2" width="12" height="12" rx="2"/>
+      <circle cx="5.5" cy="5.5" r="0.9" fill="currentColor"/>
+      <circle cx="10.5" cy="5.5" r="0.9" fill="currentColor"/>
+      <circle cx="8" cy="8" r="0.9" fill="currentColor"/>
+      <circle cx="5.5" cy="10.5" r="0.9" fill="currentColor"/>
+      <circle cx="10.5" cy="10.5" r="0.9" fill="currentColor"/>
     </svg>
-    <span>Shuffle</span>`;
-  shuffleBtn.addEventListener('click', () => {
-    const ratio = state.aspectRatio;
-    const visible = _loadPresets().filter(p => (p?.snap?.aspectRatio || '1:1') === ratio);
-    if (visible.length === 0) return;
-
-    // Pick a random preset for this aspect — different from the one
-    // currently applied, when there's more than one to choose from.
-    let pick = visible[Math.floor(Math.random() * visible.length)];
-    if (visible.length > 1) {
-      // crude "current" detection: matches by headlineText + bgColor + imageStyle
-      const isCurrent = p =>
-        p.snap.headlineText === state.headlineText &&
-        p.snap.bgColor      === state.bgColor &&
-        p.snap.imageStyle   === state.imageStyle;
-      let guard = 0;
-      while (isCurrent(pick) && guard++ < 8) {
-        pick = visible[Math.floor(Math.random() * visible.length)];
-      }
-    }
-
-    // Apply the picked preset (same flow as clicking its chip)
-    Object.assign(state, pick.snap);
-    if (!pick.snap.headlineTextBase) {
-      const luma = getColorLuma(state.headlineTextColor || '#ffffff');
-      state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
-      state.headlineTextOpacity = 1.0;
-    }
-    if (!pick.snap.footerTextBase) {
-      const luma = getColorLuma(state.footerTextColor || '#ffffff');
-      state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
-      state.footerTextOpacity = 1.0;
-    }
-    _applyPresetSlide();
-    syncControlsToState();
-    updateOverlays();
-    if (window._p5Resize) window._p5Resize();
-    renderList();
-  });
+    <span>Random</span>`;
+  randomBtn.addEventListener('click', () => randomize());
 
   actionRow.appendChild(saveBtn);
-  actionRow.appendChild(shuffleBtn);
+  actionRow.appendChild(randomBtn);
   content.appendChild(actionRow);
 
   function renderList() {

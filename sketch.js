@@ -41,10 +41,13 @@ function computeCanvasDimensions() {
     artboard.style.height = ch + 'px';
     const scale = cw / 2696;
     artboard.style.setProperty('--scale', scale);
-    // Per-aspect footer scale (story format gets a bigger footer block,
-    // but the text inside is scaled a touch less for proportion).
-    const footerScale     = state.aspectRatio === '9:16' ? 2   : 1;
-    const footerTextScale = state.aspectRatio === '9:16' ? 1.5 : 1;
+    // Per-aspect footer scale.
+    //   • 9:16 (story)  — block 2×, text 1.5× (already tuned)
+    //   • 4:5  (portrait) — block 1.2×, text 1.2×
+    //   • everything else — 1×
+    let footerScale = 1, footerTextScale = 1;
+    if (state.aspectRatio === '9:16') { footerScale = 2;   footerTextScale = 1.5; }
+    else if (state.aspectRatio === '4:5') { footerScale = 1.2; footerTextScale = 1.2; }
     artboard.style.setProperty('--footer-scale',      footerScale);
     artboard.style.setProperty('--footer-text-scale', footerTextScale);
     artboard.dataset.aspect = state.aspectRatio;

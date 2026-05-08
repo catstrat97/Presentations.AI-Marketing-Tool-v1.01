@@ -155,7 +155,7 @@ function buildGUI() {
   //   2. Preset list        (filtered to current aspect ratio)
   //   3. Save Preset row    (saves into the active aspect's bucket)
   let _refreshPresetList = null;
-  const fAssetSize = registerFolder(pane.addFolder({ title: 'Asset Size', expanded: false }));
+  const fAssetSize = registerFolder(pane.addFolder({ title: 'Asset Size', expanded: true }));
   into(fAssetSize, ct => {
     ct.classList.add('section-asset-size');
 
@@ -557,6 +557,18 @@ function buildGUI() {
     ct.appendChild(mkToggle({ id:'ctrl-hl-fill',     label:'Fill Behind Text', key:'headlineFillEnabled',
       onChange: () => { state.headlineFillOpacity = 1; updateOverlays(); redraw(); } }));
     ct.appendChild(mkColor( { id:'ctrl-hl-fill-col', label:'Fill Colour',      key:'headlineFillColor', onChange: updateOverlays }));
+    // Symmetric Top + Bottom padding for the fill box. The slider writes
+    // to headlineFillPaddingTop and mirrors the value into ...Bottom so
+    // the box stays balanced. Constrained range keeps it compositional.
+    ct.appendChild(mkSlider({
+      id:'ctrl-hl-fill-pad-top', label:'Padding',
+      min:40, max:200, step:4,
+      key:'headlineFillPaddingTop', decimals:0,
+      onChange: () => {
+        state.headlineFillPaddingBottom = state.headlineFillPaddingTop;
+        updateOverlays();
+      },
+    }));
 
     // ── Typography ────────────────────────────────────────
     ct.appendChild(mkSubLabel('Typography'));
@@ -736,6 +748,9 @@ function _initGUI() {
   });
 
   document.getElementById('btn-random').addEventListener('click', randomize);
+  // Expose so the in-section Asset Size "Random" button can call it
+  // without coupling presets.js to randomize.js directly.
+  window._randomize = randomize;
 
   // ── Make the floating panel draggable by its header ─────────
   const panel  = document.getElementById('panel');

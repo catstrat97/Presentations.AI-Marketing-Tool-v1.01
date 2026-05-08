@@ -67,12 +67,12 @@ const _ASPECT_DEFAULTS_OVERRIDES = {
   },
   // ── 4:5 Portrait ──────────────────────────────────────────
   '4:5': {
-    headlineFontSize:        127,
+    headlineFontSize:        145,
     headlineYPos:            206,
     headlineTracking:        -4.8,
     headlinePadding:         260,
-    headlineFillPaddingTop:  170,
-    headlineFillPaddingBottom: 160,
+    headlineFillPaddingTop:  84,
+    headlineFillPaddingBottom: 84,
     imageScale:              1.55,
     imageYOffset:            590,
   },
