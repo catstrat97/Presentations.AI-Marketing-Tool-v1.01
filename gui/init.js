@@ -52,7 +52,6 @@ import {
 import { buildPresetsContent, applyDefaultPreset } from './presets.js';
 import { buildTranslateSection } from './translate.js';
 import {
-  randomize,
   syncControlsToState,
   _applyTheme,
 } from './randomize.js';
@@ -348,9 +347,9 @@ function buildGUI() {
   });
 
   // ── Composition ──────────────────────────────────────────
-  const fGraphics = registerFolder(pane.addFolder({ title: 'Composition', expanded: false }));
-  into(fGraphics, ct => {
-    ct.classList.add('section-composition');
+  const fBackground = registerFolder(pane.addFolder({ title: 'Background', expanded: false }));
+  into(fBackground, ct => {
+    ct.classList.add('section-background');
 
     const cards    = document.createElement('div'); cards.className = 'comp-cards';
     const cardRect = document.createElement('div');
@@ -515,14 +514,11 @@ function buildGUI() {
     cardCirc.addEventListener('click', () => switchType('circular'));
     cardImg.addEventListener('click',  () => switchType('image'));
 
-    // Composition-only blur control
+    // Background-wide blur control
     ct.appendChild(mkSlider({ id:'ctrl-blur', label:'Blur', min:0, max:20, step:0.5, key:'blur', decimals:1 }));
-  });
 
-  // ── Graphics (slim: opacity + shadow + inner glow only) ───
-  const fGraphicsFx = registerFolder(pane.addFolder({ title: 'Graphics', expanded: false }));
-  into(fGraphicsFx, ct => {
-    ct.appendChild(mkSubLabel('Global Opacity', 0));
+    // ── Effects (was the standalone 'Graphics' folder) ──────
+    ct.appendChild(mkSubLabel('Global Opacity'));
     ct.appendChild(mkToggle({ id:'ctrl-global-op', label:'Blend as Group', key:'globalOpacity' }));
     ct.appendChild(mkSlider({ id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
       onChange: () => { renderGradientBar(); redraw(); } }));
@@ -537,15 +533,20 @@ function buildGUI() {
     ct.appendChild(mkSlider({ id:'ctrl-glow-intensity',label:'Intensity',      min:0,    max:1, step:0.01, key:'innerGlowIntensity', decimals:2 }));
   });
 
-  // ── Headline ──────────────────────────────────────────────
-  const fHeadline = registerFolder(pane.addFolder({ title: 'Headline', expanded: false }));
+  // ── Text Content (Headline + Footer) ──────────────────────
+  const fHeadline = registerFolder(pane.addFolder({ title: 'Text Content', expanded: false }));
   into(fHeadline, ct => {
-    ct.classList.add('section-headline');
+    ct.classList.add('section-text-content');
 
-    // ── Text ──────────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Text', 0));
+    // ── Header Text ───────────────────────────────────────
+    ct.appendChild(mkSubLabel('Header Text', 0));
     ct.appendChild(mkTextarea({ id:'ctrl-hl-text',  label:'',                key:'headlineText',           rows:3, onChange: updateOverlays }));
     ct.appendChild(mkInput(   { id:'ctrl-hl-words', label:'Highlight Words', key:'headlineHighlightWords',         onChange: updateOverlays }));
+
+    // ── Footer Text (sits right after Header Text so both text
+    //   inputs are adjacent and editable together).
+    ct.appendChild(mkSubLabel('Footer Text'));
+    ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
 
     // ── Colour ────────────────────────────────────────────
     ct.appendChild(mkSubLabel('Colour'));
@@ -555,7 +556,7 @@ function buildGUI() {
     // ── Fill ──────────────────────────────────────────────
     ct.appendChild(mkSubLabel('Fill'));
     ct.appendChild(mkToggle({ id:'ctrl-hl-fill',     label:'Fill Behind Text', key:'headlineFillEnabled',
-      onChange: () => { state.headlineFillOpacity = 1; updateOverlays(); redraw(); } }));
+      onChange: () => { updateOverlays(); redraw(); } }));
     ct.appendChild(mkColor( { id:'ctrl-hl-fill-col', label:'Fill Colour',      key:'headlineFillColor', onChange: updateOverlays }));
     // Symmetric Top + Bottom padding for the fill box. The slider writes
     // to headlineFillPaddingTop and mirrors the value into ...Bottom so
@@ -584,6 +585,12 @@ function buildGUI() {
     ct.appendChild(mkSubLabel('Position'));
     ct.appendChild(mkSlider({ id:'ctrl-hl-y',   label:'Y Position',  min:0, max:1500, step:1, key:'headlineYPos',    decimals:0, onChange: updateOverlays }));
     ct.appendChild(mkSlider({ id:'ctrl-hl-pad', label:'L/R Padding', min:0, max:700,  step:1, key:'headlinePadding', decimals:0, onChange: updateOverlays }));
+
+    // ── Footer Colour (single inline row — the only footer-styling
+    //   control left after Typography was removed; no longer worth a
+    //   group divider + sub-section).
+    ct.appendChild(mkSubLabel('Footer Colour'));
+    ct.appendChild(mkTextBaseControl('ft', { withOpacity: false }));
   });
 
   // ── Slides ────────────────────────────────────────────────
@@ -641,28 +648,6 @@ function buildGUI() {
     // ── Distribution ──────────────────────────────────────
     ct.appendChild(mkSubLabel('Distribution'));
     buildImageDistControls(ct);
-  });
-
-  // ── Footer ────────────────────────────────────────────────
-  const fFooter = registerFolder(pane.addFolder({ title: 'Footer', expanded: false }));
-  into(fFooter, ct => {
-    ct.classList.add('section-footer');
-
-    // ── Text ──────────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Text', 0));
-    ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
-
-    // ── Colour ────────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Colour'));
-    ct.appendChild(mkTextBaseControl('ft'));
-
-    // ── Typography ────────────────────────────────────────
-    ct.appendChild(mkSubLabel('Typography'));
-    ct.appendChild(mkSegmented({ id:'ctrl-ft-align', label:'', key:'footerAlign',
-      options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
-      onChange: updateOverlays }));
-    ct.appendChild(mkSegmented({ id:'ctrl-ft-font',  label:'', key:'footerFont',
-      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
   });
 
   // ── Translate ─────────────────────────────────────────────
@@ -746,11 +731,6 @@ function _initGUI() {
   document.getElementById('btn-export').addEventListener('click', () => {
     if (window._exportCanvas) window._exportCanvas();
   });
-
-  document.getElementById('btn-random').addEventListener('click', randomize);
-  // Expose so the in-section Asset Size "Random" button can call it
-  // without coupling presets.js to randomize.js directly.
-  window._randomize = randomize;
 
   // ── Make the floating panel draggable by its header ─────────
   const panel  = document.getElementById('panel');

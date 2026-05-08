@@ -20,24 +20,31 @@ function _applyPresetSlide() {
   state.imageSrc        = imgs[idx] || '';
 }
 
+// Restore a preset snap into state. Older snaps may predate the
+// headlineTextBase/footerTextBase fields — derive sensible base
+// colours from text-colour luma when missing. Pure state mutation;
+// callers handle UI sync (syncControlsToState / updateOverlays).
+function _applyPresetSnap(snap) {
+  Object.assign(state, snap);
+  if (!snap.headlineTextBase) {
+    const luma = getColorLuma(state.headlineTextColor || '#ffffff');
+    state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
+    state.headlineTextOpacity = 1.0;
+  }
+  if (!snap.footerTextBase) {
+    const luma = getColorLuma(state.footerTextColor || '#ffffff');
+    state.footerTextBase = luma > 128 ? '#ffffff' : '#050505';
+  }
+  _applyPresetSlide();
+}
+
 // Public: apply the first preset for the active aspect (used at boot).
 export function applyDefaultPreset() {
   const all = _loadPresets();
   const ratio = state.aspectRatio;
   const first = all.find(p => (p?.snap?.aspectRatio || '1:1') === ratio);
   if (!first) return false;
-  Object.assign(state, first.snap);
-  if (!first.snap.headlineTextBase) {
-    const luma = getColorLuma(state.headlineTextColor || '#ffffff');
-    state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
-    state.headlineTextOpacity = 1.0;
-  }
-  if (!first.snap.footerTextBase) {
-    const luma = getColorLuma(state.footerTextColor || '#ffffff');
-    state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
-    state.footerTextOpacity = 1.0;
-  }
-  _applyPresetSlide();
+  _applyPresetSnap(first.snap);
   return true;
 }
 
@@ -128,7 +135,7 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
-  saveBtn.className = 'grad-action-btn';
+  saveBtn.className = 'grad-action-btn dark';
   saveBtn.title = 'Save current configuration as a preset for this aspect';
   saveBtn.innerHTML = `
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -138,18 +145,24 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
     <span>Save Preset</span>`;
   saveBtn.addEventListener('click', () => {
     const ratio = state.aspectRatio;
-    // Auto-name as Style-N, where N is the next number in this aspect.
+    // Auto-name as Style{sep}N. Accept both "Style-N" and "Style N" so
+    // numbering doesn't restart when defaults use one separator and
+    // older saves used the other; new names match the separator of the
+    // most-recent matching preset (falls back to a hyphen).
+    const NAME_RE = /^Style[\s-]+(\d+)$/;
     const all = _loadPresets();
     const inThisAspect = all.filter(p => (p?.snap?.aspectRatio || '1:1') === ratio);
     const usedNumbers = new Set(
       inThisAspect.map(p => {
-        const m = /^Style-(\d+)$/.exec(p.name || '');
+        const m = NAME_RE.exec(p.name || '');
         return m ? parseInt(m[1], 10) : NaN;
       }).filter(n => !isNaN(n))
     );
     let n = 1;
     while (usedNumbers.has(n)) n++;
-    const name = `Style-${n}`;
+    const sep = inThisAspect.find(p => /^Style[\s-]/.test(p.name || ''))
+      ?.name?.match(/^Style([\s-])/)?.[1] || '-';
+    const name = `Style${sep}${n}`;
 
     // Save the full state (including imageStyle, imageStyleIndex, and
     // imageStyleOrder) so the slide context restores on apply.
@@ -167,7 +180,7 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
 
   const randomBtn = document.createElement('button');
   randomBtn.type = 'button';
-  randomBtn.className = 'grad-action-btn';
+  randomBtn.className = 'grad-action-btn dark';
   randomBtn.title = 'Randomise the design';
   randomBtn.innerHTML = `
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -179,7 +192,10 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
       <circle cx="10.5" cy="10.5" r="0.9" fill="currentColor"/>
     </svg>
     <span>Random</span>`;
-  randomBtn.addEventListener('click', () => randomize());
+  randomBtn.addEventListener('click', () => {
+    randomize();
+    if (window._p5Resize) window._p5Resize();
+  });
 
   actionRow.appendChild(saveBtn);
   actionRow.appendChild(randomBtn);
@@ -210,20 +226,7 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
       applyBtn.textContent = preset.name;
       applyBtn.title       = 'Apply preset';
       applyBtn.addEventListener('click', () => {
-        Object.assign(state, preset.snap);
-        if (!preset.snap.headlineTextBase) {
-          const luma = getColorLuma(state.headlineTextColor || '#ffffff');
-          state.headlineTextBase    = luma > 128 ? '#ffffff' : '#050505';
-          state.headlineTextOpacity = 1.0;
-        }
-        if (!preset.snap.footerTextBase) {
-          const luma = getColorLuma(state.footerTextColor || '#ffffff');
-          state.footerTextBase    = luma > 128 ? '#ffffff' : '#050505';
-          state.footerTextOpacity = 1.0;
-        }
-        // Re-derive the slide image from the saved style+index so the
-        // visual that was active when the preset was saved is restored.
-        _applyPresetSlide();
+        _applyPresetSnap(preset.snap);
         syncControlsToState();
         updateOverlays();
         if (window._p5Resize) window._p5Resize();
@@ -247,19 +250,6 @@ export function buildPresetsContent(content, { syncControlsToState, updateOverla
           renderList();
         });
         chip.appendChild(delBtn);
-      } else {
-        // Optional visual cue: subtle "default" badge in place of the
-        // delete control so the chip feels balanced and the user knows
-        // this preset is locked.
-        const badge = document.createElement('span');
-        badge.className = 'preset-default-badge';
-        badge.title = 'Built-in preset (cannot be deleted)';
-        badge.innerHTML = `
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="7" width="10" height="7" rx="1.5"/>
-            <path d="M5 7V5a3 3 0 0 1 6 0v2"/>
-          </svg>`;
-        chip.appendChild(badge);
       }
 
       listEl.appendChild(chip);

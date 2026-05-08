@@ -394,7 +394,6 @@ export const state = {
   headlineTextColor:      '#ffffff',   // computed by applyTextAdaptation(), do not set manually
   headlineFillEnabled:    true,
   headlineFillColor:      '#121212',
-  headlineFillOpacity:    1.0,  // locked to 1; no UI control
   // Dynamic fill-box paddings (design units). Per-aspect defaults
   // override these via ASPECT_RATIO_DEFAULTS.
   headlineFillPaddingTop:    214,
@@ -431,11 +430,8 @@ export const state = {
   showFooter:       true,
   footerByline:     'Start for free today',
   footerTextBase:   '#ffffff',   // '#050505' | '#ffffff'
-  footerTextOpacity: 1.0,
   footerTextColor:  '#ffffff',  // computed by applyTextAdaptation()
-  footerAlign:     'left',
   footerTracking:  -1.63,
-  footerFont:      '500',
 
   // ── Translation ──
   // previewLang: which language the canvas displays. 'en' = canonical source.
