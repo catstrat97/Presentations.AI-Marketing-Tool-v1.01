@@ -38,6 +38,7 @@ import {
   autoAssignTextColor,
   enforceCircleCoupling,
   enforceFillCoupling,
+  enforceFlipCurveRule,
   onBgChanged,
   rebuildBgSwatches,
   rebuildCtSwatches,
@@ -529,6 +530,8 @@ function buildGUI() {
         const show = v === 'noise';
         noiseSeedRow.style.display = show ? '' : 'none';
         reseedRow.style.display    = show ? '' : 'none';
+        // Quadratic / Cubic / Hyperbolic must always render flipped.
+        enforceFlipCurveRule();
         redraw();
       },
     }));

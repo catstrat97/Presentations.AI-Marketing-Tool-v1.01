@@ -21,6 +21,7 @@ import {
 import {
   enforceCircleCoupling,
   enforceFillCoupling,
+  enforceFlipCurveRule,
   onBgChanged,
   rebuildBgSwatches,
   syncTheme,
@@ -392,6 +393,7 @@ export function syncControlsToState() {
   // the previously-applied rules stale.
   enforceFillCoupling();
   enforceCircleCoupling();
+  enforceFlipCurveRule();
   onBgChanged();
 }
 

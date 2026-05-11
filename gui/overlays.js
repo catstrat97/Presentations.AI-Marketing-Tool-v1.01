@@ -188,6 +188,27 @@ export function onBgChanged() {
 // Curve options that remain selectable in the constrained
 // fill-off + top-baseline + symmetry-off mode.
 const _CURVES_TOP_NOSYM = new Set(['flat', 'parabolic']);
+// Curves that have no readable use case in the un-flipped orientation —
+// the wide end always belongs at the baseline, never at the apex.
+// Flip is forced on and the toggle is locked whenever one of these is
+// the active curve type.
+const _CURVES_FORCE_FLIP = new Set(['quadratic', 'cubic', 'hyperbolic']);
+
+export function enforceFlipCurveRule() {
+  const flipInp = document.getElementById('ctrl-flip-curve');
+  const flipRow = flipInp?.closest('.toggle-row');
+  if (_CURVES_FORCE_FLIP.has(state.curveType)) {
+    state.flipCurve = true;
+    if (flipInp) flipInp.checked = true;
+    if (flipRow) {
+      flipRow.classList.add('locked');
+      flipRow.title = 'Flip is required for Quadratic, Cubic, and Hyperbolic curves';
+    }
+  } else if (flipRow) {
+    flipRow.classList.remove('locked');
+    flipRow.removeAttribute('title');
+  }
+}
 
 // Anchor positions retained after corner removal. Used to remap legacy
 // state values (e.g. an old preset stored 'top-left') to a safe value.
@@ -364,9 +385,9 @@ export function enforceFillCoupling() {
     // ── Symmetry lock when fill ON + baseline top/bottom ─────
     // Mirrored compositions only read cleanly with symmetry on, so
     // when the user enables fill and the baseline is vertical, force
-    // symmetry on and grey out the toggle. Left/right baselines stay
-    // togglable (they don't have the same readability constraint).
-    const verticalBaseline = state.baseline === 'top' || state.baseline === 'bottom';
+    // symmetry on and grey out the toggle.
+    const verticalBaseline   = state.baseline === 'top'  || state.baseline === 'bottom';
+    const horizontalBaseline = state.baseline === 'left' || state.baseline === 'right';
     if (verticalBaseline) {
       state.symmetry = true;
       if (symInp) symInp.checked = true;
@@ -377,6 +398,23 @@ export function enforceFillCoupling() {
     } else if (symRow) {
       symRow.classList.remove('locked');
       symRow.removeAttribute('title');
+    }
+
+    // ── Mirror lock when fill ON + baseline left/right ───────
+    // A left/right baseline without mirror has no valid use case
+    // (single-edge stack with no counterweight reads as broken).
+    // Force mirror on and grey out the toggle — same rule as fill-off
+    // mode, but only on the horizontal baselines where it applies.
+    if (horizontalBaseline) {
+      state.mirrorY = true;
+      if (mirInp) mirInp.checked = true;
+      if (mirRow) {
+        mirRow.classList.add('locked');
+        mirRow.title = 'Mirror Axis is required with a left/right baseline';
+      }
+    } else if (mirRow) {
+      mirRow.classList.remove('locked');
+      mirRow.removeAttribute('title');
     }
   }
 
