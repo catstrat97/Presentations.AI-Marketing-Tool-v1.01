@@ -366,7 +366,6 @@ function renderComposition(p, alphaOverride) {
 
 function _renderCompositionImpl(p, alphaOverride) {
   const count   = Math.max(2, Math.floor(state.rectCount));
-  const spacing = Math.max(0, state.spacing);
   const dir     = state.baseline;
   const sym     = state.symmetry;
   const mirror  = state.mirrorY;
@@ -374,9 +373,16 @@ function _renderCompositionImpl(p, alphaOverride) {
   const baseAlpha = alphaOverride ?? state.opacity;
 
   const isH = dir === 'bottom' || dir === 'top';
+  const axisDim  = isH ? cw : ch;
+
+  // Dynamic spacing clamp: keep at least _MIN_SLOT (in canvas pixels,
+  // scaled with axis) per rectangle so the bars never overflow into
+  // the staggered/clipped look at high count or high spacing.
+  const _MIN_SLOT = Math.max(2, axisDim * 0.004);
+  const maxSpacing = Math.max(0, (axisDim - count * _MIN_SLOT) / (count + 1));
+  const spacing    = Math.max(0, Math.min(state.spacing, maxSpacing));
 
   const totalSpacing = spacing * (count + 1);
-  const axisDim  = isH ? cw : ch;
   const slotSize = Math.max(2, (axisDim - totalSpacing) / count);
 
   const perpDim   = isH ? ch : cw;

@@ -125,7 +125,16 @@ export function randomize() {
   };
   state.circleSpacingX = _rollStagger();
   state.circleSpacingY = 0;
-  state.spacing            = 0;
+  // Rectangle spacing: only randomised for low-density grids
+  // (rectCount < 60). 1-in-5 rolls land on 0 (flush grid); the other
+  // 4-in-5 pick an integer 1–8 (subtle gaps that still read as a grid).
+  // Higher-density grids stay at 0 — spacing past a certain count just
+  // produces visual stagger artefacts.
+  if (state.compositionType === 'rectangle' && state.rectCount < 60) {
+    state.spacing = (Math.random() < 0.2) ? 0 : (1 + Math.floor(Math.random() * 8));
+  } else {
+    state.spacing = 0;
+  }
   state.extent             = +(0.4+Math.random()*0.55).toFixed(2);
   // Anchor 'center-left' forces opacity into the 0.30–0.50 band so the
   // multi-mirror cascade reads as a translucent stack rather than a
