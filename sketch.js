@@ -469,8 +469,12 @@ function _renderCircularCompositionImpl(p, alphaOverride) {
   // ── Gradient direction for this composition ───────────────────
   // Mirrors in the opposite axis must flip the gradient so the reflected
   // copy looks like a true mirror image rather than a repeat.
-  // Direction matches what computeRectFill derives from baseline.
-  const circGradDir = (state.baseline === 'left' || state.baseline === 'right') ? 'horizontal' : 'vertical';
+  // Derived from the circle ANCHOR (not the rectangle baseline) so a
+  // top/bottom-anchored circular composition reads vertically and a
+  // left/right-anchored one reads horizontally.
+  const circGradDir = (align === 'center-left' || align === 'center-right')
+    ? 'horizontal'
+    : 'vertical';
 
   // ── Anchor centre ─────────────────────────────────────────────
   let anchorX = cw / 2, anchorY = ch / 2;
@@ -529,8 +533,20 @@ function _renderCircularCompositionImpl(p, alphaOverride) {
     const R        = currentD / 2;
 
     // Per-circle centre: stagger shifts each ring inward from the anchor.
-    const cx = anchorX + staggerDirX * effectiveStagger * fillT;
-    const cy = anchorY + staggerDirY * effectiveStagger * fillT;
+    let cx = anchorX + staggerDirX * effectiveStagger * fillT;
+    let cy = anchorY + staggerDirY * effectiveStagger * fillT;
+
+    // Mirror mode — override the mirror-axis position so EVERY circle's
+    // inner edge sits exactly on the canvas midline. That guarantees
+    // each circle's reflection touches it perfectly regardless of
+    // diameter, which the static stagger couldn't pull off for the
+    // smaller rings in the cascade.
+    if (state.circleMirrorXY) {
+      if      (align.includes('bottom')) cy = ch / 2 + R;
+      else if (align.includes('top'))    cy = ch / 2 - R;
+      if      (align.includes('right'))  cx = cw / 2 + R;
+      else if (align.includes('left'))   cx = cw / 2 - R;
+    }
 
     // isHMirror / isVMirror drive gradient flip so the reflected copy is a
     // true mirror image. For a horizontal gradient, flipping H reverses it;

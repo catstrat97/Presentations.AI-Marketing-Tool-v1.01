@@ -111,8 +111,18 @@ export function randomize() {
   state.rectCount          = _randInt(r.rectCount);
   state.circleCount        = _randInt(r.circleCount);
   state.circleDiameter     = _randInt(r.circleDiameter);
-  state.circleSpacingX     = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
-  state.circleSpacingY     = +(Math.random()>0.7 ? Math.random()*200 : 0).toFixed(0);
+  // Circle stagger: X-only — Y offset is always 0 (mirror mode
+  // positions circles dynamically on the Y axis so they touch their
+  // reflection regardless of diameter; manual Y offset would break it).
+  const _staggerCap   = Math.max(25, Math.min(150, Math.floor(state.circleDiameter / 8 / 25) * 25));
+  const _staggerSteps = Math.floor(_staggerCap / 25);
+  const _rollStagger  = () => {
+    if (Math.random() > 0.4) return 0;
+    const sign = Math.random() < 0.5 ? -1 : 1;
+    return sign * (1 + Math.floor(Math.random() * _staggerSteps)) * 25;
+  };
+  state.circleSpacingX = _rollStagger();
+  state.circleSpacingY = 0;
   state.spacing            = 0;
   state.extent             = +(0.4+Math.random()*0.55).toFixed(2);
   // Anchor 'center-left' forces opacity into the 0.30–0.50 band so the
@@ -358,11 +368,18 @@ export function _applyTheme(v) {
   if (state.bgGradientMode && state.bgGradientPreset) {
     const currentBgTheme = BG_GRADIENTS[state.bgGradientPreset]?.theme;
     if (currentBgTheme !== v) {
-      const firstBg = Object.entries(BG_GRADIENTS).find(([, bg]) => bg.theme === v);
-      if (firstBg) {
-        state.bgGradientPreset = firstBg[0];
-        state.bgGradientStops  = JSON.parse(JSON.stringify(firstBg[1].stops));
-        state.bgGradientDir    = firstBg[1].dir || 'vertical';
+      // Prefer the (theme + colorMode)-matched preset so warm-light
+      // / cool-light stay paired with their mode.
+      const wantMode = state.colorMode || 'dark';
+      const themeModeMatch = Object.entries(BG_GRADIENTS).find(
+        ([, bg]) => bg.theme === v && (bg.mode || 'dark') === wantMode
+      );
+      const anyThemeMatch = themeModeMatch
+        || Object.entries(BG_GRADIENTS).find(([, bg]) => bg.theme === v);
+      if (anyThemeMatch) {
+        state.bgGradientPreset = anyThemeMatch[0];
+        state.bgGradientStops  = JSON.parse(JSON.stringify(anyThemeMatch[1].stops));
+        state.bgGradientDir    = anyThemeMatch[1].dir || 'vertical';
       } else {
         state.bgGradientMode = false;
       }

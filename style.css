@@ -2969,3 +2969,45 @@ input[type=color]::-webkit-color-swatch {
 .section-color-theme #bg-grad-flip-row {
   margin-top: var(--space-2);
 }
+
+/* ── Highlight selection popup ──────────────────────────────
+   Floats above any text selection inside the live headline. */
+.highlight-popup {
+  position: absolute;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--text);              /* high-contrast on dark canvas bg */
+  color: var(--accent-fg);
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4),
+              0 2px 6px rgba(0,0,0,0.3);
+  user-select: none;
+  white-space: nowrap;
+  transition: transform 0.1s;
+}
+.highlight-popup:hover {
+  transform: translateY(-1px);
+}
+.highlight-popup:active {
+  transform: translateY(0);
+}
+.highlight-popup svg {
+  display: block;
+}
+
+/* When every word in the selection is already highlighted, the popup
+   becomes a Cancel control — same shape, contrasting colour. */
+.highlight-popup.is-cancel {
+  background: #ef4444;     /* red */
+  color: #ffffff;
+  border-color: rgba(0,0,0,0.25);
+}

@@ -94,10 +94,60 @@ export function syncTextBaseUI() {
   });
 }
 
+// ── Dark-BG rules ─────────────────────────────────────────────
+// Threshold tuned so swatches like Dark Umber (#361E1C), Abyss
+// (#000D1F), Deep Navy (#002156), and Slate (#23303B) all count as
+// dark, while Brick (#C72405) does not.
+const _DARK_LUMA   = 60;
+// Stepped opacity floor: deeper BG → higher floor so the composition
+// stays visible against a near-black backdrop. Light BGs unaffected.
+function _bgLuma() {
+  if (state.bgGradientMode && Array.isArray(state.bgGradientStops) && state.bgGradientStops.length) {
+    const sum = state.bgGradientStops.reduce((a, s) => a + getColorLuma(s.color), 0);
+    return sum / state.bgGradientStops.length;
+  }
+  return getColorLuma(state.bgColor || '#000000');
+}
+function _opacityFloor() {
+  const l = _bgLuma();
+  // Circular composition needs more opacity to stay legible against a
+  // dark BG — solid disks have nowhere to hide behind a low alpha.
+  if (state.compositionType === 'circular' && l < _DARK_LUMA) return 0.90;
+  if (l < 50) return 0.80;
+  if (l < _DARK_LUMA) return 0.70;
+  return 0;
+}
+
 // Called whenever BG colour or gradient mode/flip changes.
-// Runs auto text-colour assignment and, in sync mode, updates stop 3 to match BG.
+// Runs auto text-colour assignment, applies dark-BG rules (opacity
+// floor + default-sync), and, in sync mode, updates stop 3 to match BG.
 export function onBgChanged() {
   autoAssignTextColor();
+
+  // Dark-BG rules — fire on every BG mutation so they apply LIVE.
+  // Defaults only (no lock): user can still slide opacity down or
+  // pick a different palette mode after the fact.
+  const isDark = _bgLuma() < _DARK_LUMA;
+  if (isDark) {
+    const floor = _opacityFloor();
+    if (state.opacity < floor) {
+      state.opacity = floor;
+      const op = document.getElementById('ctrl-opacity');
+      if (op) {
+        op.value = String(state.opacity);
+        _setSliderFill(op);
+        const v = op.closest('.slider-row')?.querySelector('.val');
+        if (v) v.textContent = state.opacity.toFixed(2);
+      }
+    }
+    if (state.paletteMode !== 'sync') {
+      state.paletteMode = 'sync';
+      const palSeg = document.getElementById('ctrl-palette-mode');
+      if (palSeg) palSeg.querySelectorAll('.seg-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.value === 'sync'));
+    }
+  }
+
   if (state.paletteMode === 'sync') {
     enforceSync();
     renderGradientBar();
@@ -308,19 +358,25 @@ export function enforceFillCoupling() {
   }
 
   // Headline → Colour text-base segmented: locked & dimmed when fill is
-  // on (text colour is forced to the inverse of fill colour). Stays
-  // interactive when fill is off (autoAssignTextColor drives it).
+  // on. The text colour split is now:
+  //   • Base text      → muted grey  (#969696)
+  //   • Highlight text → inverse of fill colour (white on dark fill,
+  //                       dark on white fill) so highlights pop with
+  //                       the same contrast the old base used to have.
+  // Stays interactive when fill is off (autoAssignTextColor drives it).
   const hlTextSeg = document.getElementById('ctrl-hl-text-base');
   if (state.headlineFillEnabled) {
-    // Force the inverse of the fill colour, then sync the segmented +
-    // overlay so the canvas updates immediately.
-    state.headlineTextBase = state.headlineFillColor === '#ffffff' ? '#050505' : '#ffffff';
+    state.headlineTextBase       = '#969696';
+    state.headlineHighlightColor = state.headlineFillColor === '#ffffff' ? '#050505' : '#ffffff';
     applyTextAdaptation();
+    // Reflect the auto-set highlight colour in the colour picker.
+    const hlColPicker = document.getElementById('ctrl-hl-hl-color');
+    if (hlColPicker) hlColPicker.value = state.headlineHighlightColor;
     if (hlTextSeg) {
       hlTextSeg.classList.add('locked');
-      hlTextSeg.title = 'Text colour is set automatically from Fill colour when Fill is on';
+      hlTextSeg.title = 'Text colour is set automatically when Fill is on (base → grey, highlight → inverse of fill)';
       hlTextSeg.querySelectorAll('.seg-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.value === state.headlineTextBase));
+        b.classList.toggle('active', false));
     }
   } else if (hlTextSeg) {
     hlTextSeg.classList.remove('locked');
@@ -487,25 +543,54 @@ export function buildInnerPlaceholder(src) {
   return wrap;
 }
 
-// Build innerHTML for headline: wrap highlight words in .headline-hl spans.
-// Only called when the headline element is NOT focused (to avoid caret disruption).
+function _escapeHTML(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Build innerHTML for headline: wrap each per-occurrence range stored
+// in state.headlineHighlights in a .headline-hl span. Falls back to the
+// legacy word-based behaviour when ranges are empty (covers older
+// presets/translations until they get re-saved).
+// Only called when the headline element is NOT focused (avoids caret disruption).
 function _renderHeadlineHTML() {
   const display = getDisplayText();
-  const hlWords = parseHighlightWords(display.headlineHighlightWords);
-  if (hlWords.size === 0) return null; // signal: use textContent instead
-
+  const text    = display.headlineText || '';
   const hlColor = state.headlineHighlightColor || '#f66a24';
-  // Process each line, wrapping whole-word matches in spans
-  const lines = display.headlineText.split('\n');
-  const htmlLines = lines.map(line => {
-    // Split on word boundaries but preserve spaces
-    return line.replace(/(\S+)/g, (word) => {
-      if (hlWords.has(normalizeHighlightKey(word))) {
-        return `<span class="headline-hl" style="color:${hlColor}">${word}</span>`;
-      }
-      return word;
-    });
-  });
+
+  // ── Range-based path (current) ──────────────────────────────
+  const ranges = Array.isArray(state.headlineHighlights) ? state.headlineHighlights : [];
+  if (ranges.length > 0) {
+    const cleaned = ranges
+      .filter(r => r && r.end > r.start && r.start >= 0 && r.start < text.length)
+      .map(r => ({ start: Math.max(0, r.start), end: Math.min(text.length, r.end) }))
+      .sort((a, b) => a.start - b.start);
+
+    let html = '';
+    let cursor = 0;
+    for (const r of cleaned) {
+      if (r.start < cursor) continue; // overlap with prior span — skip
+      html += _escapeHTML(text.slice(cursor, r.start));
+      html += `<span class="headline-hl" style="color:${hlColor}">`
+            + _escapeHTML(text.slice(r.start, r.end))
+            + `</span>`;
+      cursor = r.end;
+    }
+    html += _escapeHTML(text.slice(cursor));
+    return html.replace(/\n/g, '<br>');
+  }
+
+  // ── Legacy word-set path (fallback for old presets/translations) ──
+  const hlWords = parseHighlightWords(display.headlineHighlightWords);
+  if (hlWords.size === 0) return null;
+
+  const lines = text.split('\n');
+  const htmlLines = lines.map(line =>
+    line.replace(/(\S+)/g, (word) =>
+      hlWords.has(normalizeHighlightKey(word))
+        ? `<span class="headline-hl" style="color:${hlColor}">${word}</span>`
+        : word
+    )
+  );
   return htmlLines.join('<br>');
 }
 

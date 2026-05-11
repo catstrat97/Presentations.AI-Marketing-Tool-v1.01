@@ -303,6 +303,28 @@ function buildGUI() {
       options: [['solid', 'Solid'], ['gradient', 'Gradient']],
       onChange: v => {
         state.bgGradientMode = (v === 'gradient');
+        // RULE: BG gradient MUST match the active composition theme.
+        // When switching to gradient mode (or if the current preset is
+        // stale/cross-theme), force-pick the theme+mode-matched preset.
+        if (state.bgGradientMode) {
+          const themeMatchedKey = state.theme === 'warm'
+            ? (state.colorMode === 'light' ? 'marketingWarmLight' : 'marketingWarm')
+            : (state.colorMode === 'light' ? 'arctic'             : 'marketingCool');
+          const def = BG_GRADIENTS[themeMatchedKey];
+          const currentDef = BG_GRADIENTS[state.bgGradientPreset];
+          const needsSwap = !currentDef || currentDef.theme !== state.theme;
+          if (def && (needsSwap || state.bgGradientPreset !== themeMatchedKey)) {
+            state.bgGradientPreset = themeMatchedKey;
+            state.bgGradientStops  = JSON.parse(JSON.stringify(def.stops));
+            state.bgGradientDir    = def.dir || 'vertical';
+            // Reflect the new active preset on the button strip.
+            const gradRow = document.getElementById('bg-grad-container');
+            if (gradRow) {
+              gradRow.querySelectorAll('.bg-grad-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.key === themeMatchedKey));
+            }
+          }
+        }
         const sg = document.getElementById('bg-solid-group');
         const gg = document.getElementById('bg-grad-group');
         if (sg) sg.style.display = state.bgGradientMode ? 'none' : '';
@@ -543,6 +565,9 @@ function buildGUI() {
       enforceFillCoupling();
       // Circle-comp coupling: refresh diameter min, anchor lock state etc.
       enforceCircleCoupling();
+      // Re-fire dark-BG rules — opacity floor depends on comp type
+      // (circular bumps to 0.90 against a dark BG; rectangle 0.70/0.80).
+      onBgChanged();
       redraw();
     };
     cardRect.addEventListener('click', () => switchType('rectangle'));
@@ -576,8 +601,17 @@ function buildGUI() {
 
     // ── Header Text ───────────────────────────────────────
     ct.appendChild(mkSubLabel('Header Text', 0));
-    ct.appendChild(mkTextarea({ id:'ctrl-hl-text',  label:'',                key:'headlineText',           rows:3, onChange: updateOverlays }));
-    ct.appendChild(mkInput(   { id:'ctrl-hl-words', label:'Highlight Words', key:'headlineHighlightWords',         onChange: updateOverlays }));
+    ct.appendChild(mkTextarea({ id:'ctrl-hl-text',  label:'',                key:'headlineText',           rows:3,
+      onChange: () => {
+        // Text changed via the panel textarea — wipe highlight ranges
+        // (their character indices are no longer trustworthy).
+        state.headlineHighlights = [];
+        state.headlineHighlightWords = '';
+        updateOverlays();
+      } }));
+    // Highlight Words input removed — users now highlight by dragging
+    // a selection over the live headline and clicking the floating
+    // "Highlight" popup (wired in the boot block at the bottom of init.js).
 
     // ── Footer Text (sits right after Header Text so both text
     //   inputs are adjacent and editable together).
@@ -593,25 +627,22 @@ function buildGUI() {
     ct.appendChild(mkSubLabel('Fill'));
     ct.appendChild(mkToggle({ id:'ctrl-hl-fill',     label:'Fill Behind Text', key:'headlineFillEnabled',
       onChange: () => {
-        // When fill toggles ON, force the headline text colour to the
-        // inverse of the fill colour (black fill → white text, white
-        // fill → black text). When OFF, autoAssignTextColor() will
-        // pick a base from the canvas BG luma in updateOverlays().
-        if (state.headlineFillEnabled) {
-          state.headlineTextBase = state.headlineFillColor === '#ffffff' ? '#050505' : '#ffffff';
-        }
+        // The actual text-colour assignment (base→grey, highlight→
+        // contrast) is centralised in enforceFillCoupling(). When fill
+        // is OFF, autoAssignTextColor() handles the base from BG luma.
         enforceFillCoupling();
         updateOverlays();
         redraw();
       } }));
-    // Fill colour: binary Black / White (no free picker). The headline
-    // text colour locks to the inverse so contrast is always readable.
+    // Fill colour: binary Black / White (no free picker). enforceFillCoupling
+    // derives the inverse-of-fill colour for highlighted text and leaves
+    // the base text at grey so highlights stand out.
     ct.appendChild(mkSegmented({
       id: 'ctrl-hl-fill-col', label: 'Fill Colour', key: 'headlineFillColor',
       options: [['#000000', 'Black'], ['#ffffff', 'White']],
       onChange: (v) => {
         state.headlineFillColor = v;
-        state.headlineTextBase  = v === '#ffffff' ? '#050505' : '#ffffff';
+        enforceFillCoupling();
         updateOverlays();
         redraw();
       },
@@ -767,6 +798,11 @@ function _initGUI() {
     });
     hlNode.addEventListener('input', () => {
       state.headlineText = hlNode.innerText;
+      // Text changed → existing highlight ranges (character indices)
+      // are no longer trustworthy. Clear them rather than risk
+      // mis-highlighting the wrong span.
+      state.headlineHighlights = [];
+      state.headlineHighlightWords = '';
       const ta = document.getElementById('ctrl-hl-text');
       if (ta) ta.value = state.headlineText;
     });
@@ -775,6 +811,131 @@ function _initGUI() {
       updateOverlays();
     });
   }
+
+  // ── Highlight selection popup ────────────────────────────────
+  // When the user drags a selection over the live headline, show a
+  // small floating "Highlight" button next to the selection. Clicking
+  // it toggles every selected word in state.headlineHighlightWords
+  // (the same data model the renderer already uses).
+  const _hlPopup = document.createElement('button');
+  _hlPopup.type = 'button';
+  _hlPopup.className = 'highlight-popup';
+  _hlPopup.style.display = 'none';
+  document.body.appendChild(_hlPopup);
+
+  const _HL_ICON = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l4-4 6 6"/><path d="M9 7l4-4 2 2-4 4z"/></svg>`;
+  const _X_ICON  = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l10 10"/><path d="M13 3L3 13"/></svg>`;
+
+  function _hideHlPopup() { _hlPopup.style.display = 'none'; }
+
+  // Walk text-only descendants of `root`, return the character offset of
+  // (node, offset) relative to root's plain text. Used to convert a
+  // window.Selection (which lives at the DOM-node level) into character
+  // indices that match state.headlineText.
+  function _textOffset(root, node, offset) {
+    if (node === root) {
+      // offset is a child index; sum text lengths of preceding children.
+      let count = 0;
+      for (let i = 0; i < offset && i < root.childNodes.length; i++) {
+        count += (root.childNodes[i].textContent || '').length;
+      }
+      return count;
+    }
+    let count = 0;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let cur;
+    while ((cur = walker.nextNode())) {
+      if (cur === node) return count + offset;
+      count += cur.textContent.length;
+    }
+    return count;
+  }
+
+  function _selectionRangeInHeadline() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+    const range = sel.getRangeAt(0);
+    const head  = document.getElementById('headline-text');
+    if (!head || !head.contains(range.commonAncestorContainer)) return null;
+    const a = _textOffset(head, range.startContainer, range.startOffset);
+    const b = _textOffset(head, range.endContainer,   range.endOffset);
+    const start = Math.min(a, b);
+    const end   = Math.max(a, b);
+    if (end <= start) return null;
+    return { domRange: range, start, end };
+  }
+
+  // Does any existing highlight overlap [start, end)? Returns the list of
+  // overlapping range objects (could be empty).
+  function _overlappingHighlights(start, end) {
+    return (state.headlineHighlights || []).filter(r => r && r.end > start && r.start < end);
+  }
+
+  // Recompute popup label + position whenever the selection changes.
+  // Label flips: "Highlight" when the selection contains no existing
+  // highlight, "Cancel" when it overlaps any existing one.
+  document.addEventListener('selectionchange', () => {
+    const info = _selectionRangeInHeadline();
+    if (!info) { _hideHlPopup(); return; }
+    const r = info.domRange.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) { _hideHlPopup(); return; }
+
+    const isCancel = _overlappingHighlights(info.start, info.end).length > 0;
+
+    _hlPopup.classList.toggle('is-cancel', isCancel);
+    _hlPopup.innerHTML = isCancel
+      ? `${_X_ICON}<span>Cancel</span>`
+      : `${_HL_ICON}<span>Highlight</span>`;
+
+    _hlPopup.style.display = 'flex';
+    // Position above the selection, centred horizontally; clamp to viewport.
+    const top  = Math.max(8, r.top + window.scrollY - _hlPopup.offsetHeight - 8);
+    const left = Math.min(
+      window.innerWidth - _hlPopup.offsetWidth - 8,
+      Math.max(8, r.left + window.scrollX + r.width / 2 - _hlPopup.offsetWidth / 2)
+    );
+    _hlPopup.style.top  = `${top}px`;
+    _hlPopup.style.left = `${left}px`;
+  });
+
+  // Click the popup → toggle just this occurrence. mousedown (not click)
+  // so the selection isn't lost first.
+  _hlPopup.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const info = _selectionRangeInHeadline();
+    if (!info) { _hideHlPopup(); return; }
+
+    const list = Array.isArray(state.headlineHighlights) ? state.headlineHighlights.slice() : [];
+    const overlapping = list.filter(r => r && r.end > info.start && r.start < info.end);
+
+    if (overlapping.length > 0) {
+      // Cancel mode: drop every range that overlaps the current selection.
+      state.headlineHighlights = list.filter(r => !overlapping.includes(r));
+    } else {
+      // Add a new range. Keep the array sorted by start for stable rendering.
+      list.push({ start: info.start, end: info.end });
+      list.sort((a, b) => a.start - b.start);
+      state.headlineHighlights = list;
+    }
+    // Drop the legacy word-list whenever the user touches ranges so the
+    // two systems don't fight each other in the renderer.
+    state.headlineHighlightWords = '';
+
+    _hideHlPopup();
+    window.getSelection()?.removeAllRanges();
+    updateOverlays();
+  });
+
+  // Hide popup when user clicks elsewhere or scrolls.
+  document.addEventListener('mousedown', e => {
+    if (!_hlPopup.contains(e.target)) {
+      // Wait one frame so selection logic still fires first.
+      requestAnimationFrame(() => {
+        if (!_selectionRangeInHeadline()) _hideHlPopup();
+      });
+    }
+  });
+  window.addEventListener('scroll', _hideHlPopup, true);
 
   // Export — delegates to sketch.js _exportCanvas
   document.getElementById('btn-export').addEventListener('click', () => {

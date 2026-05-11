@@ -395,7 +395,11 @@ export const state = {
   showGraphics: true,
   showHeadline: true,
   headlineText:           'Start with a prompt\nEnd with a presentation',
-  headlineHighlightWords: '',
+  headlineHighlightWords: '',          // legacy — kept for back-compat / translations
+  // Per-occurrence highlights as character ranges into headlineText.
+  // Each entry { start, end }; the renderer wraps just those chars,
+  // so the same word can be highlighted in one place and not in another.
+  headlineHighlights:    [],
   headlineHighlightColor: '#f66a24',
   headlineTextBase:       '#ffffff',   // '#050505' | '#ffffff' — two-state toggle
   headlineTextOpacity:    1.0,          // 0–1, applied on top of base

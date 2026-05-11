@@ -99,23 +99,23 @@ window.addEventListener('keydown', e => {
 // Users can build on top (save new presets) but cannot remove these.
 const _DEFAULT_IDS = new Set(DEFAULT_PRESETS.map(p => p.id));
 
-// On every load: ensure all bundled defaults exist in localStorage.
-// User-saved presets are preserved. Missing defaults get re-inserted at
-// the position they appear in DEFAULT_PRESETS (top of the list, in order).
+// On every load: refresh bundled defaults from source. Defaults are
+// locked (the user can't delete or edit them) so there's nothing
+// user-modified to preserve — they should always match what's bundled.
+// Missing entries get added; existing entries get overwritten with the
+// latest source snapshot. User-saved presets are preserved verbatim.
 (function _ensureDefaultPresets() {
   try {
     let stored;
     try { stored = JSON.parse(localStorage.getItem(_PRESETS_KEY)) || []; }
     catch { stored = []; }
 
-    const haveIds = new Set(stored.map(p => p?.id));
-    const missing = DEFAULT_PRESETS.filter(p => !haveIds.has(p.id));
-    if (missing.length === 0) return;
-
-    // Re-add any missing defaults at the top, preserving user entries.
     const userEntries = stored.filter(p => !_DEFAULT_IDS.has(p?.id));
     const refreshed   = [...DEFAULT_PRESETS, ...userEntries];
-    localStorage.setItem(_PRESETS_KEY, JSON.stringify(refreshed));
+    const before = JSON.stringify(stored);
+    const after  = JSON.stringify(refreshed);
+    if (before === after) return;
+    localStorage.setItem(_PRESETS_KEY, after);
   } catch { /* ignore */ }
 })();
 
