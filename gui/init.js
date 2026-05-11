@@ -423,7 +423,7 @@ function buildGUI() {
     const groupCirc = document.createElement('div');
     groupCirc.id = 'group-circ';
     groupCirc.className = 'ctrl-group' + (state.compositionType === 'circular' ? ' active' : '');
-    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',        label:'Circle Count',                      min:6,    max:40,   step:1,  key:'circleCount' }));
+    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',        label:'Circle Count',                      min:8,    max:24,   step:1,  key:'circleCount' }));
     groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',            label:'Max Diameter',                      min:50,   max:2000, step:10, key:'circleDiameter' }));
     groupCirc.appendChild(mkToggle({ id:'ctrl-circle-stagger-auto', label:'Auto Stagger',                       key:'circleStaggerAuto' }));
     groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align',    label:'Anchor Position',                   key:'circleAlignment',
