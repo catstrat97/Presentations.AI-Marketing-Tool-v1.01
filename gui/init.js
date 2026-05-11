@@ -450,9 +450,8 @@ function buildGUI() {
     // Flip Anchor + Text-Aware Positioning removed — Flip Anchor logic
     // now lives in enforceCircleCoupling(); Text-Aware Positioning
     // (Link X to Headline + Text Gap) is no longer surfaced.
-    groupCirc.appendChild(mkSubLabel('Fine Tune'));
-    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
-    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
+    // Fine Tune (X/Y offset sliders) removed — values still driven by
+    // the auto-stagger randomiser; manual exposure is no longer needed.
     ct.appendChild(groupCirc);
 
     // Image group — preset picker + opacity

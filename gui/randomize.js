@@ -208,8 +208,7 @@ export function syncControlsToState() {
     ['ctrl-circle-count',       'circleCount',        0],
     ['ctrl-diameter',           'circleDiameter',     0],
     // ctrl-img-preset-opacity removed from UI
-    ['ctrl-circle-sp-x',        'circleSpacingX',     0],
-    ['ctrl-circle-sp-y',        'circleSpacingY',     0],
+    // ctrl-circle-sp-x / ctrl-circle-sp-y removed — Fine Tune section gone.
     // ctrl-circle-text-padding removed — Text-Aware Positioning gone
     ['ctrl-noise-seed',         'noiseSeed',          0],
     ['ctrl-spacing',           'spacing',             1],
