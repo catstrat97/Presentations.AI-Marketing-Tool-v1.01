@@ -689,6 +689,151 @@ const sketch = function(p) {
     });
   }
 
+  // StackBlur (Mario Klingemann) — in-place RGBA gaussian-approximation.
+  // Public domain. Operates on canvas ImageData.data. Deterministic, no
+  // browser-engine quirks, works at any radius up to 254.
+  const _SB_MUL = [
+    512,512,456,512,328,456,335,512,405,328,271,456,388,335,292,512,
+    454,405,364,328,298,272,496,456,420,388,360,335,312,292,273,512,
+    482,454,428,405,383,364,345,328,312,298,284,272,259,496,475,456,
+    437,420,404,388,374,360,347,335,323,312,302,292,282,273,265,512,
+    497,482,468,454,441,428,417,405,394,383,373,364,355,345,337,328,
+    320,312,305,298,291,284,278,272,266,260,255,496,485,475,465,456,
+    446,437,428,420,412,404,396,388,381,374,367,360,354,347,341,335,
+    329,323,318,312,307,302,297,292,287,282,278,273,269,265,261,512,
+    505,497,489,482,475,468,461,454,447,441,435,428,422,417,411,405,
+    399,394,389,383,378,373,368,364,359,355,350,345,341,337,332,328,
+    324,320,316,312,309,305,301,298,294,291,287,284,281,278,274,272,
+    268,265,262,260,257,255,253,496,491,485,480,475,470,465,460,456,
+    451,446,442,437,433,428,424,420,416,412,408,404,400,396,392,388,
+    385,381,377,374,370,367,363,360,357,354,350,347,344,341,338,335,
+    332,329,326,323,320,318,315,312,310,307,304,302,299,297,294,292,
+    289,287,285,282,280,278,275,273,271,269,267,265,263,261,259];
+  const _SB_SHR = [
+    9,11,12,13,13,14,14,15,15,15,15,16,16,16,16,17,17,17,17,17,17,17,
+    18,18,18,18,18,18,18,18,18,19,19,19,19,19,19,19,19,19,19,19,19,19,
+    19,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,21,21,21,
+    21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
+    21,21,21,21,22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,
+    22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,23,23,23,23,23,
+    23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,
+    23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,
+    23,23,23,23,23,23,23,23,23,23,24,24,24,24,24,24,24,24,24,24,24,24,
+    24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+    24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+    24,24,24,24,24,24,24,24,24,24,24,24,24,24,24];
+
+  function _stackBlurRGBA(pixels, width, height, radius) {
+    if (radius < 1) return;
+    if (radius > 254) radius = 254;
+    const r = radius | 0;
+    const div = r + r + 1;
+    const widthMinus1  = width  - 1;
+    const heightMinus1 = height - 1;
+    const radiusPlus1  = r + 1;
+    const mulSum = _SB_MUL[r];
+    const shgSum = _SB_SHR[r];
+    const stackR = new Uint8Array(div);
+    const stackG = new Uint8Array(div);
+    const stackB = new Uint8Array(div);
+    const stackA = new Uint8Array(div);
+
+    // Horizontal pass
+    for (let y = 0; y < height; y++) {
+      let rSum=0,gSum=0,bSum=0,aSum=0;
+      let rInSum=0,gInSum=0,bInSum=0,aInSum=0;
+      let rOutSum=0,gOutSum=0,bOutSum=0,aOutSum=0;
+      const yi = y * width;
+      for (let i = 0; i < radiusPlus1; i++) {
+        const off = (yi + Math.min(widthMinus1, i)) * 4;
+        const cr=pixels[off],cg=pixels[off+1],cb=pixels[off+2],ca=pixels[off+3];
+        stackR[i]=cr; stackG[i]=cg; stackB[i]=cb; stackA[i]=ca;
+        const rb = radiusPlus1 - i;
+        rSum+=cr*rb; gSum+=cg*rb; bSum+=cb*rb; aSum+=ca*rb;
+        rInSum+=cr; gInSum+=cg; bInSum+=cb; aInSum+=ca;
+      }
+      for (let i = 1; i < radiusPlus1; i++) {
+        const off = (yi + Math.min(widthMinus1, i)) * 4;
+        const cr=pixels[off],cg=pixels[off+1],cb=pixels[off+2],ca=pixels[off+3];
+        const si = i + r;
+        stackR[si]=cr; stackG[si]=cg; stackB[si]=cb; stackA[si]=ca;
+        const rb = radiusPlus1 - i;
+        rSum+=cr*rb; gSum+=cg*rb; bSum+=cb*rb; aSum+=ca*rb;
+        rOutSum+=cr; gOutSum+=cg; bOutSum+=cb; aOutSum+=ca;
+      }
+      let stackIn = r, stackOut = 0;
+      for (let x = 0; x < width; x++) {
+        const off = (yi + x) * 4;
+        pixels[off  ] = (rSum * mulSum) >>> shgSum;
+        pixels[off+1] = (gSum * mulSum) >>> shgSum;
+        pixels[off+2] = (bSum * mulSum) >>> shgSum;
+        pixels[off+3] = (aSum * mulSum) >>> shgSum;
+        rSum-=rOutSum; gSum-=gOutSum; bSum-=bOutSum; aSum-=aOutSum;
+        let so = stackOut;
+        rOutSum-=stackR[so]; gOutSum-=stackG[so]; bOutSum-=stackB[so]; aOutSum-=stackA[so];
+        const px = Math.min(widthMinus1, x + radiusPlus1);
+        const noff = (yi + px) * 4;
+        const cr=pixels[noff],cg=pixels[noff+1],cb=pixels[noff+2],ca=pixels[noff+3];
+        stackR[so]=cr; stackG[so]=cg; stackB[so]=cb; stackA[so]=ca;
+        rInSum+=cr; gInSum+=cg; bInSum+=cb; aInSum+=ca;
+        rSum+=rInSum; gSum+=gInSum; bSum+=bInSum; aSum+=aInSum;
+        stackIn = (stackIn + 1) % div;
+        const sii = stackIn;
+        const sr=stackR[sii],sg=stackG[sii],sb=stackB[sii],sa=stackA[sii];
+        rOutSum+=sr; gOutSum+=sg; bOutSum+=sb; aOutSum+=sa;
+        rInSum-=sr; gInSum-=sg; bInSum-=sb; aInSum-=sa;
+        stackOut = (stackOut + 1) % div;
+      }
+    }
+
+    // Vertical pass
+    for (let x = 0; x < width; x++) {
+      let rSum=0,gSum=0,bSum=0,aSum=0;
+      let rInSum=0,gInSum=0,bInSum=0,aInSum=0;
+      let rOutSum=0,gOutSum=0,bOutSum=0,aOutSum=0;
+      for (let i = 0; i < radiusPlus1; i++) {
+        const off = (Math.min(heightMinus1, i) * width + x) * 4;
+        const cr=pixels[off],cg=pixels[off+1],cb=pixels[off+2],ca=pixels[off+3];
+        stackR[i]=cr; stackG[i]=cg; stackB[i]=cb; stackA[i]=ca;
+        const rb = radiusPlus1 - i;
+        rSum+=cr*rb; gSum+=cg*rb; bSum+=cb*rb; aSum+=ca*rb;
+        rInSum+=cr; gInSum+=cg; bInSum+=cb; aInSum+=ca;
+      }
+      for (let i = 1; i < radiusPlus1; i++) {
+        const off = (Math.min(heightMinus1, i) * width + x) * 4;
+        const cr=pixels[off],cg=pixels[off+1],cb=pixels[off+2],ca=pixels[off+3];
+        const si = i + r;
+        stackR[si]=cr; stackG[si]=cg; stackB[si]=cb; stackA[si]=ca;
+        const rb = radiusPlus1 - i;
+        rSum+=cr*rb; gSum+=cg*rb; bSum+=cb*rb; aSum+=ca*rb;
+        rOutSum+=cr; gOutSum+=cg; bOutSum+=cb; aOutSum+=ca;
+      }
+      let stackIn = r, stackOut = 0;
+      for (let y = 0; y < height; y++) {
+        const off = (y * width + x) * 4;
+        pixels[off  ] = (rSum * mulSum) >>> shgSum;
+        pixels[off+1] = (gSum * mulSum) >>> shgSum;
+        pixels[off+2] = (bSum * mulSum) >>> shgSum;
+        pixels[off+3] = (aSum * mulSum) >>> shgSum;
+        rSum-=rOutSum; gSum-=gOutSum; bSum-=bOutSum; aSum-=aOutSum;
+        let so = stackOut;
+        rOutSum-=stackR[so]; gOutSum-=stackG[so]; bOutSum-=stackB[so]; aOutSum-=stackA[so];
+        const py = Math.min(heightMinus1, y + radiusPlus1);
+        const noff = (py * width + x) * 4;
+        const cr=pixels[noff],cg=pixels[noff+1],cb=pixels[noff+2],ca=pixels[noff+3];
+        stackR[so]=cr; stackG[so]=cg; stackB[so]=cb; stackA[so]=ca;
+        rInSum+=cr; gInSum+=cg; bInSum+=cb; aInSum+=ca;
+        rSum+=rInSum; gSum+=gInSum; bSum+=bInSum; aSum+=aInSum;
+        stackIn = (stackIn + 1) % div;
+        const sii = stackIn;
+        const sr=stackR[sii],sg=stackG[sii],sb=stackB[sii],sa=stackA[sii];
+        rOutSum+=sr; gOutSum+=sg; bOutSum+=sb; aOutSum+=sa;
+        rInSum-=sr; gInSum-=sg; bInSum-=sb; aInSum-=sa;
+        stackOut = (stackOut + 1) % div;
+      }
+    }
+  }
+
   // Rounded-rectangle path helper.
   function _rrPath(ctx, x, y, w, h, r) {
     r = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -788,67 +933,69 @@ const sketch = function(p) {
     const DESIGN_W = 2696;
     const scale    = (ab.width / DESIGN_W) * ES;
 
-    // ── Replicate backdrop-filter: blur(100px) + rgba(0,0,0,0.6) ──
-    // (1) Snapshot the entire export canvas to a separate buffer.
-    //     Drawing ctx.canvas onto itself is spec-allowed but flaky in
-    //     practice on export canvases — going through a stable
-    //     intermediate avoids silent failures we were hitting.
-    // (2) Downscale the footer region to a tiny canvas — bilinear
-    //     filtering during this single drawImage already does most
-    //     of the perceived blur.
-    // (3) Soft ctx.filter pass on the tiny canvas to smooth aliasing.
-    // (4) Upscale back, clipped to the footer rect.
-    // (5) rgba(0,0,0,0.5) overlay (slightly lighter than CSS's 0.6 so
-    //     the blurred backdrop reads through clearly in PNG export).
-    const SCALE_DOWN = 24;
-    const SMALL_BLUR = 4;
-    const pad        = Math.ceil(60 * (ctx.canvas.width / Math.max(1, ab.width)));
-
-    // Step 1 — full-canvas snapshot.
-    const fullSnap = document.createElement('canvas');
-    fullSnap.width  = ctx.canvas.width;
-    fullSnap.height = ctx.canvas.height;
-    fullSnap.getContext('2d').drawImage(ctx.canvas, 0, 0);
+    // ── Replicate backdrop-filter: blur(100px) + rgba(0,0,0,0.5) ──
+    // Canvas has no native blur API at export scale that survives every
+    // browser engine — ctx.filter clamps radius, SVG feGaussianBlur data
+    // URLs hit size limits, CSS backdrop-filter is live-DOM only.
+    // Pure-JS StackBlur on raw pixels is the deterministic option.
+    //
+    // Pipeline:
+    //   1. Crop footer region (+ generous edge-bleed padding) → temp canvas.
+    //   2. Downsample 4× so the blur is cheap and the radius is
+    //      effectively 4× larger for free, then StackBlur in-place.
+    //   3. Upscale back via drawImage (smoothing enabled = bilinear,
+    //      which itself softens — the combo gives a clean frosted look).
+    //   4. rgba(0,0,0,0.5) tint on top.
+    const exportScale = ctx.canvas.width / Math.max(1, ab.width);
+    // CSS blur(100px) ≈ this radius. Scaled to export resolution.
+    const fullRadius  = Math.max(20, Math.round(100 * exportScale));
+    const pad         = Math.ceil(fullRadius * 2);
 
     const cropX = Math.max(0, Math.floor(rect.x - pad));
     const cropY = Math.max(0, Math.floor(rect.y - pad));
-    const cropR = Math.min(fullSnap.width,  Math.ceil(rect.x + rect.w + pad));
-    const cropB = Math.min(fullSnap.height, Math.ceil(rect.y + rect.h + pad));
+    const cropR = Math.min(ctx.canvas.width,  Math.ceil(rect.x + rect.w + pad));
+    const cropB = Math.min(ctx.canvas.height, Math.ceil(rect.y + rect.h + pad));
     const cropW = Math.max(1, cropR - cropX);
     const cropH = Math.max(1, cropB - cropY);
 
-    const smallW = Math.max(1, Math.ceil(cropW / SCALE_DOWN));
-    const smallH = Math.max(1, Math.ceil(cropH / SCALE_DOWN));
+    // 4× downsample factor — blur radius scales down accordingly.
+    const DOWN = 4;
+    const smW  = Math.max(1, Math.round(cropW / DOWN));
+    const smH  = Math.max(1, Math.round(cropH / DOWN));
+    const smR  = Math.max(2, Math.round(fullRadius / DOWN));
 
-    // Step 2 — crop + downscale.
-    const small = document.createElement('canvas');
-    small.width  = smallW;
-    small.height = smallH;
-    const sctx = small.getContext('2d');
-    sctx.imageSmoothingEnabled = true;
-    sctx.imageSmoothingQuality = 'high';
-    sctx.drawImage(fullSnap, cropX, cropY, cropW, cropH, 0, 0, smallW, smallH);
+    // Step 1+2 — crop + downsample into a small canvas.
+    const smCanvas = document.createElement('canvas');
+    smCanvas.width  = smW;
+    smCanvas.height = smH;
+    const smCtx = smCanvas.getContext('2d');
+    smCtx.imageSmoothingEnabled = true;
+    smCtx.imageSmoothingQuality = 'high';
+    smCtx.drawImage(ctx.canvas, cropX, cropY, cropW, cropH, 0, 0, smW, smH);
 
-    // Step 3 — soft blur on the tiny canvas.
-    const small2 = document.createElement('canvas');
-    small2.width  = smallW;
-    small2.height = smallH;
-    const s2ctx = small2.getContext('2d');
-    s2ctx.filter = `blur(${SMALL_BLUR}px)`;
-    s2ctx.drawImage(small, 0, 0);
-    s2ctx.filter = 'none';
+    // Step 3 — StackBlur on the small ImageData.
+    try {
+      const id = smCtx.getImageData(0, 0, smW, smH);
+      _stackBlurRGBA(id.data, smW, smH, smR);
+      smCtx.putImageData(id, 0, 0);
+    } catch (err) {
+      console.warn('StackBlur failed, falling back to ctx.filter:', err);
+      smCtx.filter = `blur(${smR}px)`;
+      smCtx.drawImage(smCanvas, 0, 0);
+      smCtx.filter = 'none';
+    }
 
-    // Step 4 — upscale back, clipped to footer rect.
+    // Step 4 — upscale back into the main canvas, clipped to footer.
     ctx.save();
     ctx.beginPath();
     ctx.rect(rect.x, rect.y, rect.w, rect.h);
     ctx.clip();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(small2, 0, 0, smallW, smallH, cropX, cropY, cropW, cropH);
+    ctx.drawImage(smCanvas, 0, 0, smW, smH, cropX, cropY, cropW, cropH);
     ctx.restore();
 
-    // Step 5 — dark tint, lighter than CSS's 0.6 so blur is visible.
+    // Dark tint overlay.
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
 
