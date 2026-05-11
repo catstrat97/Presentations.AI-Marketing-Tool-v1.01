@@ -398,7 +398,7 @@ function buildGUI() {
     const groupRect = document.createElement('div');
     groupRect.id = 'group-rect';
     groupRect.className = 'ctrl-group' + (state.compositionType === 'rectangle' ? ' active' : '');
-    groupRect.appendChild(mkSlider({ id:'ctrl-count',    label:'Rectangle Count',   min:2,   max:120,  step:1,   key:'rectCount' }));
+    groupRect.appendChild(mkSlider({ id:'ctrl-count',    label:'Rectangle Count',   min:4,   max:120,  step:1,   key:'rectCount' }));
     groupRect.appendChild(mkSlider({ id:'ctrl-spacing',  label:'Item Spacing',      min:0,   max:30,   step:0.5, key:'spacing',   decimals:1 }));
     groupRect.appendChild(mkToggle({ id:'ctrl-symmetry', label:'Symmetry (size)',   key:'symmetry',
       // Symmetry change can flip the curve filter (top baseline + sym off
