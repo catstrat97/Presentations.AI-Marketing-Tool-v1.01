@@ -210,7 +210,7 @@ body {
   height: calc(190px * var(--scale) * var(--footer-scale, 1));
   bottom: 0;
   left: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(100px);
   -webkit-backdrop-filter: blur(100px);
   display: flex;

@@ -996,7 +996,7 @@ const sketch = function(p) {
     ctx.restore();
 
     // Dark tint overlay.
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
 
     // Inset top highlight (matches CSS inset box-shadow)
