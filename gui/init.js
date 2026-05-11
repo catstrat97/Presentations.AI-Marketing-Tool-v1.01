@@ -379,12 +379,15 @@ function buildGUI() {
 
     const cards    = document.createElement('div'); cards.className = 'comp-cards';
     const cardRect = document.createElement('div');
+    cardRect.id = 'comp-card-rect';
     cardRect.className = 'comp-card' + (state.compositionType === 'rectangle' ? ' active' : '');
     cardRect.innerHTML = `<svg viewBox="0 0 24 24"><rect x="5" y="6" width="3" height="12" rx="1"/><rect x="10.5" y="3" width="3" height="15" rx="1"/><rect x="16" y="8" width="3" height="10" rx="1"/></svg><span>Rectangle</span>`;
     const cardCirc = document.createElement('div');
+    cardCirc.id = 'comp-card-circ';
     cardCirc.className = 'comp-card' + (state.compositionType === 'circular' ? ' active' : '');
     cardCirc.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="6" cy="14" r="3.5"/><circle cx="12" cy="7" r="3.5"/><circle cx="18" cy="11" r="3.5"/></svg><span>Circular</span>`;
     const cardImg  = document.createElement('div');
+    cardImg.id = 'comp-card-img';
     cardImg.className = 'comp-card' + (state.compositionType === 'image' ? ' active' : '');
     cardImg.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M3 16l4.5-4.5 3 3 3-4 4.5 5.5"/></svg><span>Image</span>`;
     cards.appendChild(cardRect); cards.appendChild(cardCirc); cards.appendChild(cardImg);
@@ -419,7 +422,7 @@ function buildGUI() {
     const groupCirc = document.createElement('div');
     groupCirc.id = 'group-circ';
     groupCirc.className = 'ctrl-group' + (state.compositionType === 'circular' ? ' active' : '');
-    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',        label:'Circle Count',                      min:2,    max:40,   step:1,  key:'circleCount' }));
+    groupCirc.appendChild(mkSlider({ id:'ctrl-circle-count',        label:'Circle Count',                      min:6,    max:40,   step:1,  key:'circleCount' }));
     groupCirc.appendChild(mkSlider({ id:'ctrl-diameter',            label:'Max Diameter',                      min:50,   max:2000, step:10, key:'circleDiameter' }));
     groupCirc.appendChild(mkToggle({ id:'ctrl-circle-stagger-auto', label:'Auto Stagger',                       key:'circleStaggerAuto' }));
     groupCirc.appendChild(mkAnchorGrid({ id:'ctrl-circle-align',    label:'Anchor Position',                   key:'circleAlignment',
@@ -475,7 +478,7 @@ function buildGUI() {
     });
     imgPickerRow.appendChild(imgPickerLabel); imgPickerRow.appendChild(imgPickerWrap);
     groupImg.appendChild(imgPickerRow);
-    groupImg.appendChild(mkSlider({ id:'ctrl-img-preset-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'imagePresetOpacity', decimals:2 }));
+    // Preset opacity slider removed — no use case in image-comp mode.
     ct.appendChild(groupImg);
 
     // Curve distribution (hidden for circular / image compositions)
@@ -550,6 +553,7 @@ function buildGUI() {
       groupCirc.classList.toggle('active', type === 'circular');
       groupImg.classList.toggle('active',  type === 'image');
       curveWrap.style.display = (type === 'circular' || type === 'image') ? 'none' : '';
+      if (window._syncBlurVisibility) window._syncBlurVisibility();
       // Re-apply the fill/palette-mode coupling so the lock state and
       // sync-corrected gradient stops stay current for the new comp.
       enforceFillCoupling();
@@ -564,15 +568,34 @@ function buildGUI() {
     cardCirc.addEventListener('click', () => switchType('circular'));
     cardImg.addEventListener('click',  () => switchType('image'));
 
-    // Background-wide blur control
-    ct.appendChild(mkSlider({ id:'ctrl-blur', label:'Blur', min:0, max:20, step:0.5, key:'blur', decimals:1 }));
+    // Background-wide blur control (hidden in image composition mode —
+    // blur is applied to the composition graphics, not photos).
+    const blurSlider = mkSlider({ id:'ctrl-blur', label:'Blur', min:0, max:20, step:0.5, key:'blur', decimals:1 });
+    ct.appendChild(blurSlider);
+    const _syncBlurVisibility = () => {
+      blurSlider.style.display = (state.compositionType === 'image') ? 'none' : '';
+    };
+    _syncBlurVisibility();
+    window._syncBlurVisibility = _syncBlurVisibility;
 
     // ── Effects (was the standalone 'Graphics' folder) ──────
     // Blend-as-group is permanently on; the toggle has been removed.
     state.globalOpacity = true;
-    ct.appendChild(mkSubLabel('Opacity'));
-    ct.appendChild(mkSlider({ id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
-      onChange: () => { renderGradientBar(); redraw(); } }));
+    const opacityLabel  = mkSubLabel('Opacity');
+    const opacitySlider = mkSlider({ id:'ctrl-opacity', label:'Opacity', min:0, max:1, step:0.01, key:'opacity', decimals:2,
+      onChange: () => { renderGradientBar(); redraw(); } });
+    ct.appendChild(opacityLabel);
+    ct.appendChild(opacitySlider);
+    // Hide both the preset-opacity (removed) and global-opacity sliders
+    // in image composition mode — no use case there.
+    const _origSyncBlur = window._syncBlurVisibility;
+    window._syncBlurVisibility = () => {
+      if (typeof _origSyncBlur === 'function') _origSyncBlur();
+      const hideOpacity = (state.compositionType === 'image');
+      opacityLabel.style.display  = hideOpacity ? 'none' : '';
+      opacitySlider.style.display = hideOpacity ? 'none' : '';
+    };
+    window._syncBlurVisibility();
 
     ct.appendChild(mkSubLabel('Depth Shadow'));
     ct.appendChild(mkToggle({ id:'ctrl-depth-shadow', label:'Enabled',         key:'depthShadow' }));
@@ -698,8 +721,9 @@ function buildGUI() {
       ],
       onChange: updateOverlays,
     }));
-    ct.appendChild(mkSlider({ id:'ctrl-img-sw',  label:'Weight',  min:0, max:100, step:1,    key:'imageStrokeWeight', decimals:0, onChange: updateOverlays }));
-    ct.appendChild(mkSlider({ id:'ctrl-img-sop', label:'Opacity', min:0, max:1,   step:0.01, key:'imageStrokeOp',     decimals:2, onChange: updateOverlays }));
+    // Stroke weight + stroke opacity sliders removed — locked to 12 / 100%.
+    state.imageStrokeWeight = 12;
+    state.imageStrokeOp     = 1.0;
     ct.appendChild(mkSlider({ id:'ctrl-img-rad', label:'Corner Radius', min:0, max:40, step:1, key:'imageRadius',     decimals:0, onChange: updateOverlays }));
 
     // ── Distribution ──────────────────────────────────────
@@ -739,9 +763,11 @@ function _initGUI() {
   // ── Boot with the first preset for the active aspect ──────
   // Falls back to the per-aspect defaults already applied above if
   // localStorage is empty for this ratio.
-  if (applyDefaultPreset()) {
-    syncControlsToState();
-  }
+  applyDefaultPreset();
+  // Always sync — even when no preset was loaded, this re-fires every
+  // composition / background coupling rule so the boot state matches
+  // what the user would see after switching composition manually.
+  syncControlsToState();
 
   updateAspectLabel(state.aspectRatio);
   renderGradientBar();
@@ -908,6 +934,11 @@ function _initGUI() {
 
     _hideHlPopup();
     window.getSelection()?.removeAllRanges();
+    // Blur the headline so updateOverlays() actually rewrites innerHTML.
+    // Otherwise activeElement === headEl and the render is skipped to
+    // preserve the caret, leaving the user staring at unchanged text.
+    const _headEl = document.getElementById('headline-text');
+    if (document.activeElement === _headEl) _headEl.blur();
     enforceFillCoupling();   // refresh locks + apply the new colour rule
     updateOverlays();
   });

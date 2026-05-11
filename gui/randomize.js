@@ -21,6 +21,7 @@ import {
 import {
   enforceCircleCoupling,
   enforceFillCoupling,
+  onBgChanged,
   rebuildBgSwatches,
   syncTheme,
   syncTextBaseUI,
@@ -43,7 +44,7 @@ const _ASPECT_RANGES = {
   '1.91:1': { rectCount: [60, 160], circleCount: [3, 8],  circleDiameter: [700, 1500] },
   '9:16':   { rectCount: [40, 110], circleCount: [6, 16], circleDiameter: [500, 1300] },
 };
-const _DEFAULT_RANGES = { rectCount: [10, 70], circleCount: [5, 20], circleDiameter: [200, 1400] };
+const _DEFAULT_RANGES = { rectCount: [10, 70], circleCount: [6, 20], circleDiameter: [200, 1400] };
 
 function _randInt([lo, hi]) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
 
@@ -205,7 +206,7 @@ export function syncControlsToState() {
     ['ctrl-count',              'rectCount',          0],
     ['ctrl-circle-count',       'circleCount',        0],
     ['ctrl-diameter',           'circleDiameter',     0],
-    ['ctrl-img-preset-opacity',  'imagePresetOpacity',  2],
+    // ctrl-img-preset-opacity removed from UI
     ['ctrl-circle-sp-x',        'circleSpacingX',     0],
     ['ctrl-circle-sp-y',        'circleSpacingY',     0],
     // ctrl-circle-text-padding removed — Text-Aware Positioning gone
@@ -225,8 +226,7 @@ export function syncControlsToState() {
     ['ctrl-img-multi-stagger-y', 'imageMultiStaggerY', 0],
     ['ctrl-img-scale',         'imageScale',          2],
     ['ctrl-img-y',             'imageYOffset',        0],
-    ['ctrl-img-sop',           'imageStrokeOp',       2],
-    ['ctrl-img-sw',            'imageStrokeWeight',   0],
+    // ctrl-img-sop / ctrl-img-sw removed — locked to 1.0 / 12.
   ].forEach(([id, key, dec]) => {
     const el = document.getElementById(id); if (!el) return;
     el.value = state[key];
@@ -340,6 +340,10 @@ export function syncControlsToState() {
 
   // Force always-on slides distribution (covers older presets)
   state.imageMulti = true;
+  // Stroke weight + opacity are locked (sliders removed); normalise
+  // any legacy preset values so the renderer always uses 12 / 100%.
+  state.imageStrokeWeight = 12;
+  state.imageStrokeOp     = 1.0;
   // Slide count is restricted to odd numbers (1, 3, 5, 7, 9)
   let n = Math.max(1, Math.min(9, Math.floor(state.imageMultiCount)));
   if (n % 2 === 0) n = Math.min(9, n + 1);
@@ -356,6 +360,39 @@ export function syncControlsToState() {
   syncTheme();
   // Sync text base toggles and opacity sliders
   syncTextBaseUI();
+
+  // ── Composition cards / control-group / curve-wrap active state ──
+  // These are built once at boot with classes pinned to the initial
+  // state.compositionType. Without this re-sync, a preset that lands
+  // with a different composition leaves the GUI showing the wrong
+  // section's controls (and the wrong card highlighted).
+  const compType = state.compositionType;
+  const _setActive = (id, on) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', on);
+  };
+  _setActive('comp-card-rect', compType === 'rectangle');
+  _setActive('comp-card-circ', compType === 'circular');
+  _setActive('comp-card-img',  compType === 'image');
+  _setActive('group-rect',     compType === 'rectangle');
+  _setActive('group-circ',     compType === 'circular');
+  _setActive('group-img-comp', compType === 'image');
+  const curveWrap = document.getElementById('curve-controls-wrap');
+  if (curveWrap) {
+    curveWrap.style.display = (compType === 'circular' || compType === 'image') ? 'none' : '';
+  }
+  // Hide blur slider + global opacity in image-comp mode (rule lives in init.js).
+  if (typeof window._syncBlurVisibility === 'function') window._syncBlurVisibility();
+
+  // ── Re-fire all background / composition coupling rules ──
+  // These keep the dark-BG opacity floor, palette-mode lock, sync-mode
+  // gradient stops, circle anchor lock, fill colour rules etc. in step
+  // with whatever state we just landed in. Without this, switching
+  // composition manually (or loading a preset on first paint) leaves
+  // the previously-applied rules stale.
+  enforceFillCoupling();
+  enforceCircleCoupling();
+  onBgChanged();
 }
 
 // ── _applyTheme: central warm/cool theme switcher ─────────────

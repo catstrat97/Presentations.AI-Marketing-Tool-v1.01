@@ -120,7 +120,7 @@ export function syncTextBaseUI() {
 // ── Dark-BG rules ─────────────────────────────────────────────
 // Threshold tuned so swatches like Dark Umber (#361E1C), Abyss
 // (#000D1F), Deep Navy (#002156), and Slate (#23303B) all count as
-// dark, while Brick (#C72405) does not.
+// dark, while warmer mid-tones like Ember (#DF490B) do not.
 const _DARK_LUMA   = 60;
 // Stepped opacity floor: deeper BG → higher floor so the composition
 // stays visible against a near-black backdrop. Light BGs unaffected.

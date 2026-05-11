@@ -166,7 +166,7 @@ export const PALETTES = {
       { stop: 0.40, color: '#f66a24' },
       { stop: 0.60, color: '#f65324' },
       { stop: 0.80, color: '#df490b' },
-      { stop: 1.00, color: '#c72405' },
+      { stop: 1.00, color: '#361E1C' },
     ],
   },
 
@@ -246,7 +246,6 @@ export const BG_PALETTE_MAP = {
   // Dark mode swatches (default)
   'warm-dark': [
     { color: '#361E1C', label: 'Dark Umber' },
-    { color: '#C72405', label: 'Brick' },
     { color: '#DF490B', label: 'Ember' },
     { color: '#F65324', label: 'Flame' },
     { color: '#F66A24', label: 'Orange' },
@@ -288,7 +287,6 @@ export const BG_PALETTE_MAP = {
     { color: '#F66A24', label: 'Orange' },
     { color: '#F65324', label: 'Flame' },
     { color: '#DF490B', label: 'Ember' },
-    { color: '#C72405', label: 'Brick' },
     { color: '#361E1C', label: 'Dark Umber' },
   ],
   cool: [
@@ -429,7 +427,7 @@ export const state = {
   imageStrokeStyle: 'marketing',
   imageRadius:     12,              // clamped 0–40 in GUI
   imageStrokeOp:   1.0,
-  imageStrokeWeight: 20,
+  imageStrokeWeight: 12,
 
   // Image Distribution — always-on; count=1 ≡ single slide.
   imageMulti:        true,        // legacy flag, retained for preset back-compat
