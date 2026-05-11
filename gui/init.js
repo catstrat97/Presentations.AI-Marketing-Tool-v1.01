@@ -570,15 +570,8 @@ function buildGUI() {
     cardCirc.addEventListener('click', () => switchType('circular'));
     cardImg.addEventListener('click',  () => switchType('image'));
 
-    // Background-wide blur control (hidden in image composition mode —
-    // blur is applied to the composition graphics, not photos).
-    const blurSlider = mkSlider({ id:'ctrl-blur', label:'Blur', min:0, max:20, step:0.5, key:'blur', decimals:1 });
-    ct.appendChild(blurSlider);
-    const _syncBlurVisibility = () => {
-      blurSlider.style.display = (state.compositionType === 'image') ? 'none' : '';
-    };
-    _syncBlurVisibility();
-    window._syncBlurVisibility = _syncBlurVisibility;
+    // Blur slider removed — no observable effect on the composition.
+    // state.blur stays in the model but is force-zeroed in syncControlsToState.
 
     // ── Effects (was the standalone 'Graphics' folder) ──────
     // Blend-as-group is permanently on; the toggle has been removed.
@@ -588,11 +581,9 @@ function buildGUI() {
       onChange: () => { renderGradientBar(); redraw(); } });
     ct.appendChild(opacityLabel);
     ct.appendChild(opacitySlider);
-    // Hide both the preset-opacity (removed) and global-opacity sliders
-    // in image composition mode — no use case there.
-    const _origSyncBlur = window._syncBlurVisibility;
+    // Hide the global-opacity slider in image composition mode — no
+    // use case there.
     window._syncBlurVisibility = () => {
-      if (typeof _origSyncBlur === 'function') _origSyncBlur();
       const hideOpacity = (state.compositionType === 'image');
       opacityLabel.style.display  = hideOpacity ? 'none' : '';
       opacitySlider.style.display = hideOpacity ? 'none' : '';

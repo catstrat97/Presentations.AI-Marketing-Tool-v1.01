@@ -133,7 +133,8 @@ export function randomize() {
   state.opacity = (state.compositionType === 'circular' && state.circleAlignment === 'center-left')
     ? +(0.30 + Math.random() * 0.20).toFixed(2)
     : +(0.55 + Math.random() * 0.40).toFixed(2);
-  state.blur               = Math.random()<0.35 ? +(Math.random()*10).toFixed(1) : 0;
+  // state.blur — slider removed (no visible effect); locked to 0.
+  state.blur               = 0;
   state.innerGlow          = Math.random() > 0.5;
   state.innerGlowIntensity = +(0.3+Math.random()*0.65).toFixed(2);
   // Always generate a fresh noise seed so noise mode looks different each time
@@ -214,7 +215,7 @@ export function syncControlsToState() {
     ['ctrl-spacing',           'spacing',             1],
     ['ctrl-extent',            'extent',              2],
     ['ctrl-opacity',           'opacity',             2],
-    ['ctrl-blur',              'blur',                1],
+    // ctrl-blur removed
     ['ctrl-ds-spread',         'dsSpread',            2],
     ['ctrl-ds-opacity',        'dsOpacity',           2],
     ['ctrl-glow-intensity',    'innerGlowIntensity',  2],
