@@ -824,7 +824,9 @@ export function rebuildCtSwatches() {
 // ══════════════════════════════════════════════════════════════
 // prefix: 'hl' (headline) | 'ft' (footer)
 // opts.withOpacity: include the opacity slider (default true)
-export function mkTextBaseControl(prefix, { withOpacity = true } = {}) {
+// withOpacity default is false — the Opacity slider was removed (no use
+// case; full-opacity text on both headline + footer).
+export function mkTextBaseControl(prefix, { withOpacity = false } = {}) {
   const baseKey = prefix === 'hl' ? 'headlineTextBase'    : 'footerTextBase';
   const opKey   = prefix === 'hl' ? 'headlineTextOpacity' : 'footerTextOpacity';
 

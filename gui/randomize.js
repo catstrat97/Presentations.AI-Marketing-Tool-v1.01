@@ -344,6 +344,9 @@ export function syncControlsToState() {
   // any legacy preset values so the renderer always uses 12 / 100%.
   state.imageStrokeWeight = 12;
   state.imageStrokeOp     = 1.0;
+  // Text Colour Opacity slider removed — normalise to full opacity.
+  state.headlineTextOpacity = 1.0;
+  state.footerTextOpacity   = 1.0;
   // Slide count is restricted to odd numbers (1, 3, 5, 7, 9)
   let n = Math.max(1, Math.min(9, Math.floor(state.imageMultiCount)));
   if (n % 2 === 0) n = Math.min(9, n + 1);
