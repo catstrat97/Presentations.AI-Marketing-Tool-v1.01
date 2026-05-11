@@ -443,19 +443,9 @@ function buildGUI() {
       // Mirror change feeds the hidden Flip Anchor logic.
       onChange: () => { enforceCircleCoupling(); redraw(); },
     }));
-    // Flip Anchor toggle removed — logic now lives in enforceCircleCoupling().
-    groupCirc.appendChild(mkSubLabel('Text-Aware Positioning'));
-    groupCirc.appendChild(mkToggle({
-      id: 'ctrl-circle-text-link', label: 'Link X to Headline', key: 'circleTextLink',
-      onChange: () => {
-        const r = document.getElementById('ctrl-circle-text-padding')?.closest('.control-row');
-        if (r) r.style.display = state.circleTextLink ? '' : 'none';
-        redraw();
-      },
-    }));
-    const textPadRow = mkSlider({ id:'ctrl-circle-text-padding', label:'Text Gap (extra px)', min:-200, max:400, step:10, key:'circleTextPadding' });
-    textPadRow.style.display = state.circleTextLink ? '' : 'none';
-    groupCirc.appendChild(textPadRow);
+    // Flip Anchor + Text-Aware Positioning removed — Flip Anchor logic
+    // now lives in enforceCircleCoupling(); Text-Aware Positioning
+    // (Link X to Headline + Text Gap) is no longer surfaced.
     groupCirc.appendChild(mkSubLabel('Fine Tune'));
     groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-x', label:'X Offset', min:-1000, max:1000, step:1, key:'circleSpacingX' }));
     groupCirc.appendChild(mkSlider({ id:'ctrl-circle-sp-y', label:'Y Offset', min:-1000, max:1000, step:1, key:'circleSpacingY' }));
@@ -619,24 +609,23 @@ function buildGUI() {
     ct.appendChild(mkInput({ id:'ctrl-ft-byline', label:'', key:'footerByline', onChange: updateOverlays }));
 
     // ── Colour ────────────────────────────────────────────
+    // Text base (Dark/Light) toggle stays for the fill-off case;
+    // when fill is on, applyTextAdaptation() takes over and the
+    // toggle is locked + dimmed. Highlight colour picker removed —
+    // applyTextAdaptation() derives the inverse-of-fill automatically
+    // whenever the user adds a highlight.
     ct.appendChild(mkSubLabel('Colour'));
     ct.appendChild(mkTextBaseControl('hl'));
-    ct.appendChild(mkColor({ id:'ctrl-hl-hl-color', label:'Highlight', key:'headlineHighlightColor', onChange: updateOverlays }));
 
     // ── Fill ──────────────────────────────────────────────
     ct.appendChild(mkSubLabel('Fill'));
     ct.appendChild(mkToggle({ id:'ctrl-hl-fill',     label:'Fill Behind Text', key:'headlineFillEnabled',
       onChange: () => {
-        // The actual text-colour assignment (base→grey, highlight→
-        // contrast) is centralised in enforceFillCoupling(). When fill
-        // is OFF, autoAssignTextColor() handles the base from BG luma.
         enforceFillCoupling();
         updateOverlays();
         redraw();
       } }));
-    // Fill colour: binary Black / White (no free picker). enforceFillCoupling
-    // derives the inverse-of-fill colour for highlighted text and leaves
-    // the base text at grey so highlights stand out.
+    // Fill colour: binary Black / White.
     ct.appendChild(mkSegmented({
       id: 'ctrl-hl-fill-col', label: 'Fill Colour', key: 'headlineFillColor',
       options: [['#000000', 'Black'], ['#ffffff', 'White']],
@@ -647,21 +636,11 @@ function buildGUI() {
         redraw();
       },
     }));
-    // Fill-box padding slider removed — value is locked per aspect, with
-    // 1:1 and 4:5 randomised within their ranges by the Random button.
-
-    // ── Typography (Font Size, Line Height removed — locked per aspect) ─
-    ct.appendChild(mkSubLabel('Typography'));
-    ct.appendChild(mkSegmented({ id:'ctrl-hl-align', label:'', key:'headlineAlign',
-      options:[['left', ICONS.alignLeft, 'Left'],['center', ICONS.alignCenter, 'Center'],['right', ICONS.alignRight, 'Right']],
-      onChange: updateOverlays }));
-    ct.appendChild(mkSegmented({ id:'ctrl-hl-font',  label:'', key:'headlineFont',
-      options:[['400','Regular'],['500','Medium'],['700','Bold']], onChange: updateOverlays }));
-    // Position section removed entirely — Y Position and L/R Padding are
-    // both locked per aspect via ASPECT_RATIO_DEFAULTS.
-
-    // Footer text is locked to light — no Dark/Light toggle exposed.
-    // (Force the value here in case a legacy preset/state had it dark.)
+    // Typography / Position controls removed entirely — font weight is
+    // always Regular, alignment is always center, font size + line height
+    // + Y position + L/R padding + fill padding are all locked per aspect.
+    state.headlineFont      = '400';
+    state.headlineAlign     = 'center';
     state.footerTextBase    = '#ffffff';
     state.footerTextOpacity = 1.0;
   });
@@ -916,6 +895,12 @@ function _initGUI() {
       list.push({ start: info.start, end: info.end });
       list.sort((a, b) => a.start - b.start);
       state.headlineHighlights = list;
+      // Highlights require Fill Behind Text to be on (highlight colour
+      // is derived from fill colour). Auto-enable it when the user adds
+      // the first highlight to a fill-off headline.
+      if (!state.headlineFillEnabled) {
+        state.headlineFillEnabled = true;
+      }
     }
     // Drop the legacy word-list whenever the user touches ranges so the
     // two systems don't fight each other in the renderer.
@@ -923,6 +908,7 @@ function _initGUI() {
 
     _hideHlPopup();
     window.getSelection()?.removeAllRanges();
+    enforceFillCoupling();   // refresh locks + apply the new colour rule
     updateOverlays();
   });
 

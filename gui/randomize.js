@@ -208,7 +208,7 @@ export function syncControlsToState() {
     ['ctrl-img-preset-opacity',  'imagePresetOpacity',  2],
     ['ctrl-circle-sp-x',        'circleSpacingX',     0],
     ['ctrl-circle-sp-y',        'circleSpacingY',     0],
-    ['ctrl-circle-text-padding','circleTextPadding',  0],
+    // ctrl-circle-text-padding removed — Text-Aware Positioning gone
     ['ctrl-noise-seed',         'noiseSeed',          0],
     ['ctrl-spacing',           'spacing',             1],
     ['ctrl-extent',            'extent',              2],
@@ -266,10 +266,9 @@ export function syncControlsToState() {
     ['ctrl-baseline',      'baseline'],
     ['ctrl-curve',         'curveType'],
     ['ctrl-palette-mode',  'paletteMode'],
-    ['ctrl-hl-align',      'headlineAlign'],
     ['ctrl-img-dist-mode','imageDistMode'],
     ['ctrl-img-stroke',   'imageStrokeStyle'],
-    ['ctrl-hl-font',      'headlineFont'],
+    // ctrl-hl-align / ctrl-hl-font removed — locked to center/regular
   ].forEach(([id, key]) => {
     const seg = document.getElementById(id);
     if (!seg) return;
@@ -295,10 +294,11 @@ export function syncControlsToState() {
   }
 
   // Color pickers (free hex). The fill-colour control is now a binary
-  // Black/White segmented — handled separately below.
+  // Black/White segmented — handled separately below. The headline
+  // highlight colour picker was removed (auto-derived in
+  // applyTextAdaptation), so we only sync the BG colour here.
   [
     ['ctrl-bgcolor',      'bgColor'],
-    ['ctrl-hl-hl-color',  'headlineHighlightColor'],
   ].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.value = state[key]; });
 
   // Fill-colour binary segmented — sync active class to state value.
@@ -326,8 +326,7 @@ export function syncControlsToState() {
     ['ctrl-flip-curve',        'flipCurve'],
     ['ctrl-circle-stagger-auto','circleStaggerAuto'],
     ['ctrl-circle-mirror',     'circleMirrorXY'],
-    // ctrl-circle-flip-anchor removed from UI — logic in enforceCircleCoupling()
-    ['ctrl-circle-text-link',  'circleTextLink'],
+    // ctrl-circle-flip-anchor / ctrl-circle-text-link removed from UI
     // ctrl-global-op removed — globalOpacity is now permanently true
     // (forced below to migrate older presets that saved it false).
     ['ctrl-depth-shadow',      'depthShadow'],

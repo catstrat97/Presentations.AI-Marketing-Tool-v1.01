@@ -33,10 +33,33 @@ import {
 // ══════════════════════════════════════════════════════════════
 
 // Compute rgba colour from base hex + opacity and apply to DOM + state.
+// True iff there's at least one active highlight (range-based OR legacy
+// word-based) on the headline.
+function _hasHighlight() {
+  if (Array.isArray(state.headlineHighlights) && state.headlineHighlights.length > 0) return true;
+  if (typeof state.headlineHighlightWords === 'string' && state.headlineHighlightWords.trim().length > 0) return true;
+  return false;
+}
+
 export function applyTextAdaptation() {
-  // Headline
-  const hlBase = state.headlineTextBase || '#ffffff';
-  const hlOp   = state.headlineTextOpacity ?? 1.0;
+  // Headline — when fill is ON, the base + highlight colours flip
+  // based on whether ANY highlight exists:
+  //   • no highlights → base = inverse-of-fill (high contrast everywhere)
+  //   • has highlights → base = grey, highlight = inverse-of-fill
+  //                       (so highlighted words pop as the focal contrast)
+  let hlBase = state.headlineTextBase || '#ffffff';
+  if (state.headlineFillEnabled) {
+    const inverseOfFill = state.headlineFillColor === '#ffffff' ? '#050505' : '#ffffff';
+    if (_hasHighlight()) {
+      hlBase = '#969696';
+      state.headlineHighlightColor = inverseOfFill;
+    } else {
+      hlBase = inverseOfFill;
+    }
+    state.headlineTextBase = hlBase;
+  }
+
+  const hlOp = state.headlineTextOpacity ?? 1.0;
   const [hr, hg, hb] = hexToRgb(hlBase);
   state.headlineTextColor = `rgba(${hr},${hg},${hb},${hlOp})`;
   document.querySelectorAll('.headline-text').forEach(el => {
@@ -358,25 +381,16 @@ export function enforceFillCoupling() {
   }
 
   // Headline → Colour text-base segmented: locked & dimmed when fill is
-  // on. The text colour split is now:
-  //   • Base text      → muted grey  (#969696)
-  //   • Highlight text → inverse of fill colour (white on dark fill,
-  //                       dark on white fill) so highlights pop with
-  //                       the same contrast the old base used to have.
-  // Stays interactive when fill is off (autoAssignTextColor drives it).
+  // on (applyTextAdaptation drives the actual colour now). Stays
+  // interactive when fill is off so autoAssignTextColor's choice can
+  // be overridden manually.
   const hlTextSeg = document.getElementById('ctrl-hl-text-base');
   if (state.headlineFillEnabled) {
-    state.headlineTextBase       = '#969696';
-    state.headlineHighlightColor = state.headlineFillColor === '#ffffff' ? '#050505' : '#ffffff';
     applyTextAdaptation();
-    // Reflect the auto-set highlight colour in the colour picker.
-    const hlColPicker = document.getElementById('ctrl-hl-hl-color');
-    if (hlColPicker) hlColPicker.value = state.headlineHighlightColor;
     if (hlTextSeg) {
       hlTextSeg.classList.add('locked');
-      hlTextSeg.title = 'Text colour is set automatically when Fill is on (base → grey, highlight → inverse of fill)';
-      hlTextSeg.querySelectorAll('.seg-btn').forEach(b =>
-        b.classList.toggle('active', false));
+      hlTextSeg.title = 'Text colour is set automatically when Fill is on';
+      hlTextSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', false));
     }
   } else if (hlTextSeg) {
     hlTextSeg.classList.remove('locked');
